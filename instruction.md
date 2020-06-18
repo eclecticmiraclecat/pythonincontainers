@@ -221,7 +221,7 @@ $ sudo docker run pythonincontainers/entrypoint four five six
 one four five six
 ```
 ![](./images/14.png)
-```
+
 ```
 $ sudo docker inspect --format "ENTRYPOINT={{.Config.Entrypoint}} CMD={{.Config.Cmd}}" pythonincontainers/entrypoint
 ENTRYPOINT=[echo one] CMD=[two three]
