@@ -340,6 +340,7 @@ $ sudo docker rm -f $(sudo docker ps -a -q)
 $ sudo docker run -d -p 5000:5000 --name simple-flask pythonincontainers/simple-flask
 ```
 ## Access flask app from host
+```
 $ curl 127.0.0.1:5000
 Flask Hello world! Version 1
 ```
