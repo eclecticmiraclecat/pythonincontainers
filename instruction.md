@@ -746,6 +746,7 @@ $ curl 0.0.0.0:32768
 Flask Hello world! Version 3
 ```
 ![](./images/28.png)
+## build image algorithm
 ![](./images/29.png)
 
 # Build Container Images
@@ -857,3 +858,173 @@ Hello, World!
 
 # Dockerfile - Automation of Image Build
 ![](./images/32.png)
+![](./images/33.png)
+
+## create dockerfile
+```
+$ vim Dockerfile
+# Base image
+FROM python
+
+# create the directory if doesn't exist and cd into it
+WORKDIR /app
+
+# copy hello.py and start-app.sh into app
+COPY hello.py .
+COPY start-app.sh .
+
+# install flask
+RUN pip install Flask
+
+# startup command
+CMD ["/bin/bash", "start-app.sh"]
+```
+## build the image
+```
+$ docker build -t automated-image:1.0 .
+Sending build context to Docker daemon  4.096kB
+Step 1/6 : FROM python
+ ---> 7f5b6ccd03e9
+Step 2/6 : WORKDIR /app
+Removing intermediate container 35f0d9663629
+ ---> 0bf09ddfbb31
+Step 3/6 : COPY hello.py .
+ ---> 976201cd2631
+Step 4/6 : COPY start-app.sh .
+ ---> e680edc52eba
+Step 5/6 : RUN pip install Flask
+ ---> Running in 2f8067f6edfc
+Collecting Flask
+  Downloading Flask-1.1.2-py2.py3-none-any.whl (94 kB)
+Collecting click>=5.1
+  Downloading click-7.1.2-py2.py3-none-any.whl (82 kB)
+Collecting Jinja2>=2.10.1
+  Downloading Jinja2-2.11.2-py2.py3-none-any.whl (125 kB)
+Collecting Werkzeug>=0.15
+  Downloading Werkzeug-1.0.1-py2.py3-none-any.whl (298 kB)
+Collecting itsdangerous>=0.24
+  Downloading itsdangerous-1.1.0-py2.py3-none-any.whl (16 kB)
+Collecting MarkupSafe>=0.23
+  Downloading MarkupSafe-1.1.1-cp38-cp38-manylinux1_x86_64.whl (32 kB)
+Installing collected packages: click, MarkupSafe, Jinja2, Werkzeug, itsdangerous, Flask
+Successfully installed Flask-1.1.2 Jinja2-2.11.2 MarkupSafe-1.1.1 Werkzeug-1.0.1 click-7.1.2 itsdangerous-1.1.0
+Removing intermediate container 2f8067f6edfc
+ ---> 007c6e6bd2bb
+Step 6/6 : CMD ["/bin/bash", "start-app.sh"]
+ ---> Running in d50dac6daac9
+Removing intermediate container d50dac6daac9
+ ---> bb841ecf66a2
+Successfully built bb841ecf66a2
+Successfully tagged automated-image:1.0
+```
+## start the container
+```
+$ docker run -it --rm -p 5000:5000 automated-image:1.0
+ * Serving Flask app "hello" (lazy loading)
+ * Environment: development
+ * Debug mode: on
+ * Running on http://0.0.0.0:5000/ (Press CTRL+C to quit)
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 291-337-079
+```
+## access the flask app
+```
+$ curl 127.0.0.1:5000
+Hello, World!
+```
+
+## use ENV to drop start-app.sh
+```
+$ vim Dockerfile.env
+# Base image
+FROM python
+
+# create the directory if doesn't exist and cd into it
+WORKDIR /app
+
+# copy hello.py into app
+COPY hello.py .
+
+# install flask
+RUN pip install Flask
+
+# environment variables
+ENV FLASK_APP "hello"
+ENV FLASK_ENV "development"
+ENV FLASK_RUN_HOST "0.0.0.0"
+
+# startup command
+CMD ["flask", "run"]
+```
+
+## build the image
+```
+$ docker build -f Dockerfile.env -t automated-image:1.1 .
+Sending build context to Docker daemon   5.12kB
+Step 1/8 : FROM python
+ ---> 7f5b6ccd03e9
+Step 2/8 : WORKDIR /app
+ ---> Using cache
+ ---> 0bf09ddfbb31
+Step 3/8 : COPY hello.py .
+ ---> Using cache
+ ---> 976201cd2631
+Step 4/8 : RUN pip install Flask
+ ---> Running in 44dae9cd4e14
+Collecting Flask
+  Downloading Flask-1.1.2-py2.py3-none-any.whl (94 kB)
+Collecting click>=5.1
+  Downloading click-7.1.2-py2.py3-none-any.whl (82 kB)
+Collecting Jinja2>=2.10.1
+  Downloading Jinja2-2.11.2-py2.py3-none-any.whl (125 kB)
+Collecting itsdangerous>=0.24
+  Downloading itsdangerous-1.1.0-py2.py3-none-any.whl (16 kB)
+Collecting Werkzeug>=0.15
+  Downloading Werkzeug-1.0.1-py2.py3-none-any.whl (298 kB)
+Collecting MarkupSafe>=0.23
+  Downloading MarkupSafe-1.1.1-cp38-cp38-manylinux1_x86_64.whl (32 kB)
+Installing collected packages: click, MarkupSafe, Jinja2, itsdangerous, Werkzeug, Flask
+Successfully installed Flask-1.1.2 Jinja2-2.11.2 MarkupSafe-1.1.1 Werkzeug-1.0.1 click-7.1.2 itsdangerous-1.1.0
+Removing intermediate container 44dae9cd4e14
+ ---> 3d568958a545
+Step 5/8 : ENV FLASK_APP "hello"
+ ---> Running in 16476195cdc0
+Removing intermediate container 16476195cdc0
+ ---> 3222487bd79b
+Step 6/8 : ENV FLASK_ENV "development"
+ ---> Running in 999f3795f3bd
+Removing intermediate container 999f3795f3bd
+ ---> 6fd8f84754b6
+Step 7/8 : ENV FLASK_RUN_HOST "0.0.0.0"
+ ---> Running in 5915b630f439
+Removing intermediate container 5915b630f439
+ ---> f2f8bd34686a
+Step 8/8 : CMD ["flask", "run"]
+ ---> Running in 763be9265a46
+Removing intermediate container 763be9265a46
+ ---> 07d1675e501c
+Successfully built 07d1675e501c
+Successfully tagged automated-image:1.1
+```
+
+## start the container
+```
+$ docker run -it --rm -p 5000:5000 automated-image:1.1
+ * Serving Flask app "hello" (lazy loading)
+ * Environment: development
+ * Debug mode: on
+ * Running on http://0.0.0.0:5000/ (Press CTRL+C to quit)
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 109-373-717
+```
+
+## access the flask app
+```
+$ curl 127.0.0.1:5000
+Hello, World!
+```
+
+## General flow
+![](./images/34.png)
