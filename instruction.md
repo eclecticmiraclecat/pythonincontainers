@@ -638,3 +638,222 @@ $ ls -l hello.txt
 ```
 
 # Dockerfile Introduction
+```
+$ git clone https://github.com/pythonincontainers/flask-hello.git
+
+$ cd flask-hello
+
+$ docker run --rm -it -p 5000:5000 -v ${PWD}:/app python bash
+root@0a1fdfc71b14:/# cd /app/
+root@0a1fdfc71b14:/app# pip install Flask
+Collecting Flask
+  Downloading Flask-1.1.2-py2.py3-none-any.whl (94 kB)
+     |████████████████████████████████| 94 kB 329 kB/s 
+Collecting Jinja2>=2.10.1
+  Downloading Jinja2-2.11.2-py2.py3-none-any.whl (125 kB)
+     |████████████████████████████████| 125 kB 1.8 MB/s 
+Collecting click>=5.1
+  Downloading click-7.1.2-py2.py3-none-any.whl (82 kB)
+     |████████████████████████████████| 82 kB 129 kB/s 
+Collecting Werkzeug>=0.15
+  Downloading Werkzeug-1.0.1-py2.py3-none-any.whl (298 kB)
+     |████████████████████████████████| 298 kB 700 kB/s 
+Collecting itsdangerous>=0.24
+  Downloading itsdangerous-1.1.0-py2.py3-none-any.whl (16 kB)
+Collecting MarkupSafe>=0.23
+  Downloading MarkupSafe-1.1.1-cp38-cp38-manylinux1_x86_64.whl (32 kB)
+Installing collected packages: MarkupSafe, Jinja2, click, Werkzeug, itsdangerous, Flask
+Successfully installed Flask-1.1.2 Jinja2-2.11.2 MarkupSafe-1.1.1 Werkzeug-1.0.1 click-7.1.2 itsdangerous-1.1.0
+root@0a1fdfc71b14:/app# export FLASK_DEBUG=True
+root@0a1fdfc71b14:/app# python flask-hello.py 
+ * Serving Flask app "flask-hello" (lazy loading)
+ * Environment: production
+   WARNING: This is a development server. Do not use it in a production deployment.
+   Use a production WSGI server instead.
+ * Debug mode: off
+ * Running on http://0.0.0.0:5000/ (Press CTRL+C to quit)
+```
+
+> Problem too many to steps to start flask
+
+## Solution use docker build instead
+
+```
+$ cat Dockerfile
+FROM python
+WORKDIR /myproject
+COPY . .
+RUN pip install -r requirements.txt
+EXPOSE 5000
+ENV FLASK_DEBUG=True
+CMD python flask-hello.py
+```
+## Build the image in the current directory with name flask-hello:1.0
+```
+$ docker build -t flask-hello:1.0 .
+Sending build context to Docker daemon  43.01kB
+Step 1/7 : FROM python
+ ---> 7f5b6ccd03e9
+Step 2/7 : WORKDIR /myproject
+Removing intermediate container 72c722095cf4
+ ---> a7c863a65188
+Step 3/7 : COPY . .
+ ---> fd18e75d6eae
+Step 4/7 : RUN pip install -r requirements.txt
+ ---> Running in 7e8b8ef3c6e0
+Collecting Flask
+  Downloading Flask-1.1.2-py2.py3-none-any.whl (94 kB)
+Collecting click>=5.1
+  Downloading click-7.1.2-py2.py3-none-any.whl (82 kB)
+Collecting itsdangerous>=0.24
+  Downloading itsdangerous-1.1.0-py2.py3-none-any.whl (16 kB)
+Collecting Jinja2>=2.10.1
+  Downloading Jinja2-2.11.2-py2.py3-none-any.whl (125 kB)
+Collecting Werkzeug>=0.15
+  Downloading Werkzeug-1.0.1-py2.py3-none-any.whl (298 kB)
+Collecting MarkupSafe>=0.23
+  Downloading MarkupSafe-1.1.1-cp38-cp38-manylinux1_x86_64.whl (32 kB)
+Installing collected packages: click, itsdangerous, MarkupSafe, Jinja2, Werkzeug, Flask
+Successfully installed Flask-1.1.2 Jinja2-2.11.2 MarkupSafe-1.1.1 Werkzeug-1.0.1 click-7.1.2 itsdangerous-1.1.0
+Removing intermediate container 7e8b8ef3c6e0
+ ---> b6297fe84ecc
+Step 5/7 : EXPOSE 5000
+ ---> Running in d089c4609090
+Removing intermediate container d089c4609090
+ ---> 28a81b596bd3
+Step 6/7 : ENV FLASK_DEBUG=True
+ ---> Running in ac59960df036
+Removing intermediate container ac59960df036
+ ---> 9b16d204150c
+Step 7/7 : CMD python flask-hello.py
+ ---> Running in 17dd2a500779
+Removing intermediate container 17dd2a500779
+ ---> 84d85df2f4ae
+Successfully built 84d85df2f4ae
+Successfully tagged flask-hello:1.0
+```
+## Execute the created image
+> -P will automatically expose default ports
+```
+$ docker run -d -P --name flask-hello flask-hello:1.0
+68cfbe68fa5f5ab12ab7c46fdcad25ff33fabf315621d8c90730fcce8ae9a1dd
+
+$ docker ps
+CONTAINER ID        IMAGE               COMMAND                  CREATED              STATUS              PORTS                     NAMES
+68cfbe68fa5f        flask-hello:1.0     "/bin/sh -c 'python …"   About a minute ago   Up About a minute   0.0.0.0:32768->5000/tcp   flask-hello
+
+$ curl 0.0.0.0:32768
+Flask Hello world! Version 3
+```
+![](./images/28.png)
+![](./images/29.png)
+
+# Build Container Images
+![](./images/30.png)
+
+# Manual Image Build Process
+
+```
+$ mkdir manual-build
+
+$ cd manual-build
+
+$ vim hello.py
+```
+```py
+# hello.py
+from flask import Flask
+
+app = Flask(__name__)
+
+
+@app.route('/')
+def hello():
+    return 'Hello, World!'
+```
+## create script for the following commands
+![](./images/31.png)
+```
+$ vim start-app.sh
+cd /app
+export FLASK_APP='hello'
+export FLASK_ENV='development'
+export FLASK_RUN_HOST='0.0.0.0'
+flask run
+
+$ docker create -it --name manual -p 5000:5000 python /bin/sh
+186d22242bba8cd1731b349ed5dfaced77d72061c4f024e79be1fa43c36b05f3
+
+$ docker start -i manual
+# mkdir /app
+# exit
+
+$ docker cp hello.py manual:/app
+
+$ docker cp start-app.sh manual:/app
+
+$ docker start -i manual
+# cd /app
+# ls
+hello.py  start-app.sh
+# chmod +x start-app.sh	
+# pip install Flask
+Collecting Flask
+  Downloading Flask-1.1.2-py2.py3-none-any.whl (94 kB)
+     |████████████████████████████████| 94 kB 376 kB/s 
+Collecting Werkzeug>=0.15
+  Downloading Werkzeug-1.0.1-py2.py3-none-any.whl (298 kB)
+     |████████████████████████████████| 298 kB 3.3 MB/s 
+Collecting click>=5.1
+  Downloading click-7.1.2-py2.py3-none-any.whl (82 kB)
+     |████████████████████████████████| 82 kB 150 kB/s 
+Collecting Jinja2>=2.10.1
+  Downloading Jinja2-2.11.2-py2.py3-none-any.whl (125 kB)
+     |████████████████████████████████| 125 kB 1.1 MB/s 
+Collecting itsdangerous>=0.24
+  Downloading itsdangerous-1.1.0-py2.py3-none-any.whl (16 kB)
+Collecting MarkupSafe>=0.23
+  Downloading MarkupSafe-1.1.1-cp38-cp38-manylinux1_x86_64.whl (32 kB)
+Installing collected packages: Werkzeug, click, MarkupSafe, Jinja2, itsdangerous, Flask
+Successfully installed Flask-1.1.2 Jinja2-2.11.2 MarkupSafe-1.1.1 Werkzeug-1.0.1 click-7.1.2 itsdangerous-1.1.0
+# /app/start-app.sh
+ * Serving Flask app "hello" (lazy loading)
+ * Environment: development
+ * Debug mode: on
+ * Running on http://0.0.0.0:5000/ (Press CTRL+C to quit)
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 124-729-936
+```
+
+```
+$ curl 127.0.0.1:5000
+Hello, World!
+```
+
+## create the image
+```
+$ docker commit --change "CMD /app/start-app.sh" manual manual-image:1.1
+sha256:acc8438ea7edd92ce31ad883f4c67bf15256487bd2bbf8663e43c30b524ccdd9
+```
+
+## start the container
+```
+$ docker run -it --rm -p 5001:5000 manual-image:1.1
+ * Serving Flask app "hello" (lazy loading)
+ * Environment: development
+ * Debug mode: on
+ * Running on http://0.0.0.0:5000/ (Press CTRL+C to quit)
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 326-685-887
+```
+
+## access the flask app
+```
+$ curl 127.0.0.1:5001
+Hello, World!
+```
+
+# Dockerfile - Automation of Image Build
+![](./images/32.png)
