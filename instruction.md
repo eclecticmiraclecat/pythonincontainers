@@ -1028,3 +1028,528 @@ Hello, World!
 
 ## General flow
 ![](./images/34.png)
+
+# Dockerfile Commands
+![](./images/35.png)
+
+# FROM commands
+![](./images/36.png)
+
+# WORKDIR commands
+![](./images/37.png)
+
+# COPY Commands
+![](./images/38.png)
+
+# Exclude with .dockerignore
+> !include
+
+![](./images/39.png)
+
+## Exclude all except mysite and mysite_nginx.conf
+![](./images/40.png)
+
+# Docker build from github with Dockerfile in it
+![](./images/41.png)
+```
+$ docker build -t flask-hello https://github.com/pythonincontainers/flask-hello.git
+Sending build context to Docker daemon  122.9kB
+Step 1/7 : FROM python
+ ---> 7f5b6ccd03e9
+Step 2/7 : WORKDIR /myproject
+ ---> Using cache
+ ---> a7c863a65188
+Step 3/7 : COPY . .
+ ---> ee8429c6fdb7
+Step 4/7 : RUN pip install -r requirements.txt
+ ---> Running in d78094ad7db2
+Collecting Flask
+  Downloading Flask-1.1.2-py2.py3-none-any.whl (94 kB)
+Collecting Werkzeug>=0.15
+  Downloading Werkzeug-1.0.1-py2.py3-none-any.whl (298 kB)
+Collecting Jinja2>=2.10.1
+  Downloading Jinja2-2.11.2-py2.py3-none-any.whl (125 kB)
+Collecting click>=5.1
+  Downloading click-7.1.2-py2.py3-none-any.whl (82 kB)
+Collecting itsdangerous>=0.24
+  Downloading itsdangerous-1.1.0-py2.py3-none-any.whl (16 kB)
+Collecting MarkupSafe>=0.23
+  Downloading MarkupSafe-1.1.1-cp38-cp38-manylinux1_x86_64.whl (32 kB)
+Installing collected packages: Werkzeug, MarkupSafe, Jinja2, click, itsdangerous, Flask
+Successfully installed Flask-1.1.2 Jinja2-2.11.2 MarkupSafe-1.1.1 Werkzeug-1.0.1 click-7.1.2 itsdangerous-1.1.0
+Removing intermediate container d78094ad7db2
+ ---> 4ccdb4b80a6f
+Step 5/7 : EXPOSE 5000
+ ---> Running in 894b85590ab5
+Removing intermediate container 894b85590ab5
+ ---> 29392b9a4df7
+Step 6/7 : ENV FLASK_DEBUG=True
+ ---> Running in af1b1e1ac7c1
+Removing intermediate container af1b1e1ac7c1
+ ---> 4083fb56f94c
+Step 7/7 : CMD python flask-hello.py
+ ---> Running in d7290c5cbcab
+Removing intermediate container d7290c5cbcab
+ ---> 223be43f6b40
+Successfully built 223be43f6b40
+Successfully tagged flask-hello:latest
+```
+
+# RUN commands
+> only runs with non interactive command
+
+![](./images/42.png)
+
+## Change shell
+![](./images/43.png)
+![](./images/44.png)
+
+## Common use of RUN commands
+![](./images/45.png)
+
+# ENV commands
+![](./images/46.png)
+![](./images/47.png)
+
+## overwrite ENV value
+![](./images/48.png)
+
+# VOLUME commands
+![](./images/49.png)
+![](./images/50.png)
+![](./images/51.png)
+```
+$ mkdir dockerfile-vol
+
+$ cd dockerfile-vol
+
+$ vim Dockerfile.vol
+FROM python
+VOLUME /data
+COPY hello.py /data/
+
+$ vim hello.py
+print('hello')
+
+$ docker build -t vol -f Dockerfile.vol .
+Sending build context to Docker daemon  3.072kB
+Step 1/3 : FROM python
+ ---> 7f5b6ccd03e9
+Step 2/3 : VOLUME /data
+ ---> Running in 7bcffef21838
+Removing intermediate container 7bcffef21838
+ ---> 84219efb9453
+Step 3/3 : COPY hello.py /data/
+ ---> a988114fa379
+Successfully built a988114fa379
+Successfully tagged vol:latest
+
+$ docker inspect -f "{{json .Config.Volumes}}" vol
+{"/data":{}}
+
+$ docker volume create data
+data
+
+$ docker run -it --name vol -v data:/data vol bash
+root@595a8ca807a3:/# cd /data
+root@595a8ca807a3:/data# ls 
+hello.py
+```
+
+# EXPOSE command
+![](./images/52.png)
+![](./images/53.png)
+
+# Start-up command CMD and ENTRYPOINT
+![](./images/54.png)
+```
+$ mkdir dockerfile-cmd
+
+$ cd dockerfile-cmd
+
+$ vim Dockerfile.simple
+FROM python
+ENTRYPOINT ["python"]
+CMD ["--version"]
+
+$ docker build -t simple -f Dockerfile.simple .
+Sending build context to Docker daemon  2.048kB
+Step 1/3 : FROM python
+ ---> 7f5b6ccd03e9
+Step 2/3 : ENTRYPOINT ["python"]
+ ---> Running in a64c08d49761
+Removing intermediate container a64c08d49761
+ ---> 2f5d991174c5
+Step 3/3 : CMD ["--version"]
+ ---> Running in 723451831e58
+Removing intermediate container 723451831e58
+ ---> f0c707326f39
+Successfully built f0c707326f39
+Successfully tagged simple:latest
+
+$ docker run --rm simple
+Python 3.8.3
+```
+## modify Dockerfile.simple
+```
+$ vim Dockerfile.simple
+FROM python
+ENTRYPOINT ["python"]
+CMD ["-c", "print('Hello world')"]
+
+$ docker build -t simple -f Dockerfile.simple .
+Sending build context to Docker daemon  2.048kB
+Step 1/3 : FROM python
+ ---> 7f5b6ccd03e9
+Step 2/3 : ENTRYPOINT ["python"]
+ ---> Using cache
+ ---> 2f5d991174c5
+Step 3/3 : CMD ["-c", "print('Hello world')"]
+ ---> Running in f41709de6423
+Removing intermediate container f41709de6423
+ ---> 611fcbb583fc
+Successfully built 611fcbb583fc
+Successfully tagged simple:latest
+
+$ docker run --rm simple
+Hello world
+```
+
+## Example
+```
+$ git clone https://github.com/pythonincontainers/entrypoint-cmd
+
+$ cd entrypoint-cmd
+
+$ vim simple_args.py
+```
+```py
+# simple_args.py
+import sys
+
+print(sys.argv)
+```
+
+```
+$ vim Dockerfile.simple_entry
+FROM python
+WORKDIR /app/
+COPY simple_args.py /app/
+ENTRYPOINT ["python"]
+CMD ["simple_args.py"]
+
+$ docker build -t simple_entry -f Dockerfile.simple_entry .
+Sending build context to Docker daemon  9.216kB
+Step 1/5 : FROM python
+ ---> 7f5b6ccd03e9
+Step 2/5 : WORKDIR /app/
+Removing intermediate container 26642687888c
+ ---> b71397b5009b
+Step 3/5 : COPY simple_args.py /app/
+ ---> 93de5aa1fcfa
+Step 4/5 : ENTRYPOINT ["python"]
+ ---> Running in 1ff0f050cd84
+Removing intermediate container 1ff0f050cd84
+ ---> d36a99957565
+Step 5/5 : CMD ["simple_args.py"]
+ ---> Running in e0dd6d4b018c
+Removing intermediate container e0dd6d4b018c
+ ---> a54fa9f28567
+Successfully built a54fa9f28567
+Successfully tagged simple_entry:latest
+
+
+$ docker run --rm simple_entry
+['simple_args.py']
+```
+
+## modify CMD, add more arguments
+```
+$ vim Dockerfile.simple_entry
+FROM python
+WORKDIR /app/
+COPY simple_args.py /app/
+ENTRYPOINT ["python"]
+CMD ["simple_args.py", "one", "two"]
+
+$ docker build -t simple_entry -f Dockerfile.simple_entry .
+Sending build context to Docker daemon  9.216kB
+Step 1/5 : FROM python
+ ---> 7f5b6ccd03e9
+Step 2/5 : WORKDIR /app/
+ ---> Using cache
+ ---> b71397b5009b
+Step 3/5 : COPY simple_args.py /app/
+ ---> Using cache
+ ---> 93de5aa1fcfa
+Step 4/5 : ENTRYPOINT ["python"]
+ ---> Using cache
+ ---> d36a99957565
+Step 5/5 : CMD ["simple_args.py", "one", "two"]
+ ---> Running in d4befa091cff
+Removing intermediate container d4befa091cff
+ ---> 65af99738a46
+Successfully built 65af99738a46
+Successfully tagged simple_entry:latest
+
+$ docker run --rm simple_entry
+['simple_args.py', 'one', 'two']
+```
+
+## remove CMD completely
+```
+$ vim Dockerfile.simple_entry
+FROM python
+WORKDIR /app/
+COPY simple_args.py /app/
+ENTRYPOINT ["python", "simple_args.py", "one", "two"]
+
+$ docker build -t simple_entry -f Dockerfile.simple_entry .
+Sending build context to Docker daemon  9.216kB
+Step 1/4 : FROM python
+ ---> 7f5b6ccd03e9
+Step 2/4 : WORKDIR /app/
+ ---> Using cache
+ ---> b71397b5009b
+Step 3/4 : COPY simple_args.py /app/
+ ---> Using cache
+ ---> 93de5aa1fcfa
+Step 4/4 : ENTRYPOINT ["python", "simple_args.py", "one", "two"]
+ ---> Running in 208505ebd974
+Removing intermediate container 208505ebd974
+ ---> 3d48056d09f7
+Successfully built 3d48056d09f7
+Successfully tagged simple_entry:latest
+
+$ docker run --rm simple_entry
+['simple_args.py', 'one', 'two']
+```
+
+## remove ENTRYPOINT and put everythin in CMD
+```
+$ vim Dockerfile.simple_entry
+FROM python
+WORKDIR /app/
+COPY simple_args.py /app/
+CMD ["python", "simple_args.py", "one", "two"]
+
+$ docker build -t simple_entry -f Dockerfile.simple_entry .
+Sending build context to Docker daemon  9.216kB
+Step 1/4 : FROM python
+ ---> 7f5b6ccd03e9
+Step 2/4 : WORKDIR /app/
+ ---> Using cache
+ ---> b71397b5009b
+Step 3/4 : COPY simple_args.py /app/
+ ---> Using cache
+ ---> 93de5aa1fcfa
+Step 4/4 : CMD ["python", "simple_args.py", "one", "two"]
+ ---> Running in 9bec5d8ce89e
+Removing intermediate container 9bec5d8ce89e
+ ---> d28ba56d8960
+Successfully built d28ba56d8960
+Successfully tagged simple_entry:latest
+
+$ docker run --rm simple_entry
+['simple_args.py', 'one', 'two']
+```
+
+## Run with diffrent entrypoint or overwrite it
+```
+$ docker run --rm --entrypoint python3 simple_entry simple_args.py five six seven
+['simple_args.py', 'five', 'six', 'seven']
+```
+
+## start with /bin/sh
+```
+$ docker run -it --rm --entrypoint="" simple_entry /bin/sh
+# 
+```
+![](./images/54.png)
+
+```
+$ vim Dockerfile.shell
+FROM python
+WORKDIR /app/
+COPY simple_args.py /app/
+CMD python simple_args.py one two
+```
+## build the image and inspect
+```
+$ docker build -t shell -f Dockerfile.shell .
+Sending build context to Docker daemon  9.216kB
+Step 1/4 : FROM python
+ ---> 7f5b6ccd03e9
+Step 2/4 : WORKDIR /app/
+ ---> Using cache
+ ---> b71397b5009b
+Step 3/4 : COPY simple_args.py /app/
+ ---> Using cache
+ ---> 93de5aa1fcfa
+Step 4/4 : CMD python simple_args.py one two
+ ---> Running in b69ed0856f23
+Removing intermediate container b69ed0856f23
+ ---> a8789e62f93d
+Successfully built a8789e62f93d
+Successfully tagged shell:latest
+
+$ docker inspect -f "ENTRYPOINT={{.Config.Entrypoint}} CMD={{.Config.Cmd}}" shell
+ENTRYPOINT=[] CMD=[/bin/sh -c python simple_args.py one two]
+```
+
+# ARG command
+> parametrizing docker files to change versions easily insted of modifying dockerfiles
+
+> if NO --arg file the default values will be used
+
+```
+$ git clone https://github.com/pythonincontainers/dockerfile-arg
+
+$ cd dockerfile-arg
+
+$ cat Dockerfile.arg 
+ARG Python_Image_Name=python
+ARG Python_Image_Tag=latest
+FROM $Python_Image_Name:$Python_Image_Tag
+ARG Flask_Ver=1.0.2
+RUN pip install flask==$Flask_Ver
+WORKDIR /app
+COPY hello-v2.py .
+CMD ["python","hello-v2.py"]
+```
+
+## change flask version to 1.0.0
+```
+$ docker build -t args -f Dockerfile.arg --build-arg Flask_Ver=1.0.0 .
+Sending build context to Docker daemon  44.03kB
+Step 1/8 : ARG Python_Image_Name=python
+Step 2/8 : ARG Python_Image_Tag=latest
+Step 3/8 : FROM $Python_Image_Name:$Python_Image_Tag
+ ---> 7f5b6ccd03e9
+Step 4/8 : ARG Flask_Ver=1.0.2
+ ---> Running in ff790498180b
+Removing intermediate container ff790498180b
+ ---> 0c086adc10b8
+Step 5/8 : RUN pip install flask==$Flask_Ver
+ ---> Running in 4a901c89e82c
+Collecting flask==1.0.0
+  Downloading Flask-1.0-py2.py3-none-any.whl (97 kB)
+Collecting itsdangerous>=0.24
+  Downloading itsdangerous-1.1.0-py2.py3-none-any.whl (16 kB)
+Collecting Jinja2>=2.10
+  Downloading Jinja2-2.11.2-py2.py3-none-any.whl (125 kB)
+Collecting Werkzeug>=0.14
+  Downloading Werkzeug-1.0.1-py2.py3-none-any.whl (298 kB)
+Collecting click>=5.1
+  Downloading click-7.1.2-py2.py3-none-any.whl (82 kB)
+Collecting MarkupSafe>=0.23
+  Downloading MarkupSafe-1.1.1-cp38-cp38-manylinux1_x86_64.whl (32 kB)
+Installing collected packages: itsdangerous, MarkupSafe, Jinja2, Werkzeug, click, flask
+Successfully installed Jinja2-2.11.2 MarkupSafe-1.1.1 Werkzeug-1.0.1 click-7.1.2 flask-1.0 itsdangerous-1.1.0
+Removing intermediate container 4a901c89e82c
+ ---> 29e9fc479203
+Step 6/8 : WORKDIR /app
+Removing intermediate container 64c31f270c81
+ ---> fc3f47e34917
+Step 7/8 : COPY hello-v2.py .
+ ---> 60894e424cf8
+Step 8/8 : CMD ["python","hello-v2.py"]
+ ---> Running in 04e3584f29ca
+Removing intermediate container 04e3584f29ca
+ ---> 32023db99fab
+Successfully built 32023db99fab
+Successfully tagged args:latest
+```
+
+## change flask version to 1.0.0 and python image to slim
+```
+$ docker build -t args -f Dockerfile.arg --build-arg Flask_Ver=1.0.0 --build-arg Python_Image_Tag=slim .
+Sending build context to Docker daemon  44.03kB
+Step 1/8 : ARG Python_Image_Name=python
+Step 2/8 : ARG Python_Image_Tag=latest
+Step 3/8 : FROM $Python_Image_Name:$Python_Image_Tag
+slim: Pulling from library/python
+8559a31e96f4: Already exists 
+62e60f3ef11e: Pull complete 
+93c8ae153782: Pull complete 
+ea222f757df7: Pull complete 
+e97d3933bbbe: Pull complete 
+Digest: sha256:938fd520a888e9dbac3de374b8ba495cc50fe96440030264a40f733052001895
+Status: Downloaded newer image for python:slim
+ ---> 9d84edf35a0a
+Step 4/8 : ARG Flask_Ver=1.0.2
+ ---> Running in 5e23d0e9cb4b
+Removing intermediate container 5e23d0e9cb4b
+ ---> 4b9de26d72d3
+Step 5/8 : RUN pip install flask==$Flask_Ver
+ ---> Running in 8448121385d7
+Collecting flask==1.0.0
+  Downloading Flask-1.0-py2.py3-none-any.whl (97 kB)
+Collecting Jinja2>=2.10
+  Downloading Jinja2-2.11.2-py2.py3-none-any.whl (125 kB)
+Collecting Werkzeug>=0.14
+  Downloading Werkzeug-1.0.1-py2.py3-none-any.whl (298 kB)
+Collecting click>=5.1
+  Downloading click-7.1.2-py2.py3-none-any.whl (82 kB)
+Collecting itsdangerous>=0.24
+  Downloading itsdangerous-1.1.0-py2.py3-none-any.whl (16 kB)
+Collecting MarkupSafe>=0.23
+  Downloading MarkupSafe-1.1.1-cp38-cp38-manylinux1_x86_64.whl (32 kB)
+Installing collected packages: MarkupSafe, Jinja2, Werkzeug, click, itsdangerous, flask
+Successfully installed Jinja2-2.11.2 MarkupSafe-1.1.1 Werkzeug-1.0.1 click-7.1.2 flask-1.0 itsdangerous-1.1.0
+Removing intermediate container 8448121385d7
+ ---> af0e74db87d5
+Step 6/8 : WORKDIR /app
+Removing intermediate container 14625c3b6035
+ ---> 631218afbedd
+Step 7/8 : COPY hello-v2.py .
+ ---> 36e3aa57d3a4
+Step 8/8 : CMD ["python","hello-v2.py"]
+ ---> Running in 37166456526a
+Removing intermediate container 37166456526a
+ ---> 1c14e94a82f1
+Successfully built 1c14e94a82f1
+Successfully tagged args:latest
+```
+## Assign ARG variable to ENV variable to stored in metadata
+```
+$ cat Dockerfile.env 
+ARG Python_Image_Name=python
+ARG Python_Image_Tag=latest
+FROM $Python_Image_Name:$Python_Image_Tag
+ARG Flask_Ver=1.0.2
+ARG Python_Image_Name=python
+ARG Python_Image_Tag=latest
+ENV PYTHON_IMAGE_NAME $Python_Image_Name
+ENV PYTHON_IMAGE_TAG $Python_Image_Tag
+ENV FLASK_VER $Flask_Ver
+RUN pip install flask==$Flask_Ver
+WORKDIR /app
+COPY hello-v2.py .
+CMD ["python","hello-v2.py"]
+
+$ docker build -t args -f Dockerfile.env --build-arg Python_Image_Name=centos/python-36-centos7 .
+```
+![](./images/56.png)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

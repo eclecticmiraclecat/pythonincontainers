@@ -1,0 +1,4 @@
+FROM python
+ENTRYPOINT ["python"]
+#CMD ["--version"]
+CMD ["-c", "print('Hello world')"]

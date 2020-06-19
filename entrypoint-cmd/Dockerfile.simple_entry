@@ -1,0 +1,4 @@
+FROM python
+WORKDIR /app/
+COPY simple_args.py /app/
+CMD ["python", "simple_args.py", "one", "two"]
