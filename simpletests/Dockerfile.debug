@@ -1,0 +1,4 @@
+ARG BaseImage
+FROM $BaseImage
+COPY debug/. .
+CMD ["python", "-m", "pdb", "factors_flask.py"]

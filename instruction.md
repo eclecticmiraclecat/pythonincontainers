@@ -1609,3 +1609,72 @@ factors_flask       cython-multi        ab39becc59b8        2 minutes ago       
 factors_flask       cython-optimized    234666195281        19 minutes ago      957MB
 factors_flask       cython-standard     f96e06ebdb1f        29 minutes ago      957MB
 ```
+
+# Dockerizing pytest
+![](./images/72.png)
+
+```
+$ git clone https://github.com/pythonincontainers/simpletests
+
+$ cd simpletests
+
+$ cat Dockerfile.tester 
+ARG BaseImage
+FROM $BaseImage
+ENV REPORTS_FOLDER=./test_reports
+VOLUME /data
+COPY tests/. .
+CMD ["/bin/sh","/app/tester.sh"]
+```
+
+## build the image
+```
+$ docker build -t factors_flask:tester -f Dockerfile.tester --build-arg BaseImage=factors_flask:cython-multi .
+```
+## run the tests
+```
+$ docker run -it --rm -v ${PWD}:/data factors_flask:tester
+-------------------------------------------------------------------
+
+Running pylint
+
+-------------------------------------------------------------------
+
+Running pytest
+
+===================================================== test session starts =====================================================
+platform linux -- Python 3.7.3, pytest-4.5.0, py-1.8.2, pluggy-0.13.1 -- /usr/local/bin/python
+cachedir: .pytest_cache
+metadata: {'Python': '3.7.3', 'Platform': 'Linux-4.15.0-101-generic-x86_64-with-debian-9.9', 'Packages': {'pytest': '4.5.0', 'py': '1.8.2', 'pluggy': '0.13.1'}, 'Plugins': {'metadata': '1.9.0', 'html': '1.20.0', 'cov': '2.7.1'}}
+rootdir: /app
+plugins: metadata-1.9.0, html-1.20.0, cov-2.7.1
+collected 4 items                                                                                                             
+
+test_factors_flask.py::TestRoot::test_root_page PASSED                                                                  [ 25%]
+test_factors_flask.py::TestUnsupportedPaths::test_unsupported_paths PASSED                                              [ 50%]
+test_factors_flask.py::TestFactorsof6::test_factor_page_6 PASSED                                                        [ 75%]
+test_factors_flask.py::TestFactorsof0::test_factor_page_0 PASSED                                                        [100%]
+
+--------------------------------- generated html file: /data/test_reports/pytest_report.html ----------------------------------
+
+----------- coverage: platform linux, python 3.7.3-final-0 -----------
+Coverage annotated source written next to source
+Coverage HTML written to dir htmlcov
+
+================================================== 4 passed in 0.74 seconds ==================================================
+
+$ ls -1 test_reports/*html
+test_reports/pylint.html
+test_reports/pytest_report.html
+```
+
+## generated html files
+![](./images/73.png)
+![](./images/74.png)
+![](./images/75.png)
+
+
+
+
+
+
