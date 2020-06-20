@@ -1673,8 +1673,146 @@ test_reports/pytest_report.html
 ![](./images/74.png)
 ![](./images/75.png)
 
+# Django Containerization for Development
+- develop django using ide in local machine
+- use container to start django app
+- bind mount to local machine source code directory
+
+```
+$ git clone https://github.com/pythonincontainers/djangoimage
+
+$ cd djangoimage
+
+$ cat base_image/Dockerfile.mydjango 
+# ARG to parameterize the base image, if values are not set during build time the default values will be used
+ARG BaseImage=python
+ARG ImageTag=3.7.3
+FROM $BaseImage:$ImageTag
+# PYTHONUNBUFFERED 1 tells python to print to standard output immediately without buffering
+ENV PYTHONUNBUFFERED 1
+ARG DjangoVersion=2.2.1
+RUN pip install Django==$DjangoVersion
+WORKDIR /code
+```
+## build the image using default values
+```
+$ cd base_image
+
+$ docker build -t mydjango:2.2-3.7.3 -f Dockerfile.mydjango .
+```
+## check installed django version
+```
+$ docker inspect --format "ENTRYPOINT={{.Config.Entrypoint}} CMD={{.Config.Cmd}}" mydjango:2.2-3.7.3
+ENTRYPOINT=[] CMD=[python3]
+
+$ docker run -it --rm mydjango:2.2-3.7.3 django-admin --version
+2.2.1
+```
+## add shortname to the image
+```
+$ docker tag mydjango:2.2-3.7.3 django
+```
+## create django project name myproject
+```
+$ docker run -it --rm -v ${PWD}:/code django django-admin startproject myproject
+
+$ ls myproject/
+manage.py  myproject
+```
+
+## initialize an app within the container using bash
+```
+$ docker run -it --rm -v ${PWD}:/code -p 8000:8000 django bash
+root@c903e07f78ff:/code# cd myproject/
+root@c903e07f78ff:/code/myproject# python manage.py startapp myapp
+```
+
+## initialize database
+```
+$ cd myproject/
+
+$ docker run -it --rm -v ${PWD}:/code -p 8000:8000 django python manage.py migrate
+Operations to perform:
+  Apply all migrations: admin, auth, contenttypes, sessions
+Running migrations:
+  Applying contenttypes.0001_initial... OK
+  Applying auth.0001_initial... OK
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying contenttypes.0002_remove_content_type_name... OK
+  Applying auth.0002_alter_permission_name_max_length... OK
+  Applying auth.0003_alter_user_email_max_length... OK
+  Applying auth.0004_alter_user_username_opts... OK
+  Applying auth.0005_alter_user_last_login_null... OK
+  Applying auth.0006_require_contenttypes_0002... OK
+  Applying auth.0007_alter_validators_add_error_messages... OK
+  Applying auth.0008_alter_user_username_max_length... OK
+  Applying auth.0009_alter_user_last_name_max_length... OK
+  Applying auth.0010_alter_group_name_max_length... OK
+  Applying auth.0011_update_proxy_permissions... OK
+  Applying sessions.0001_initial... OK
+```
+
+## start developmet dev server
+```
+$ docker run -it --rm -v ${PWD}:/code -p 8000:8000 django python manage.py runserver 0.0.0.0:8000
+Watching for file changes with StatReloader
+Performing system checks...
+
+System check identified no issues (0 silenced).
+June 20, 2020 - 17:18:25
+Django version 2.2.1, using settings 'myproject.settings'
+Starting development server at http://0.0.0.0:8000/
+Quit the server with CONTROL-C.
+```
+
+## access the django page
+![](./images/76.png)
 
 
+## modify django on local machine
+```
+$ sudo vim myproject/urls.py
+```
+```py
+# urls.py
+from django.urls import path
+
+from myapp import views
+
+urlpatterns = [
+    path('', views.index, name='index'),
+]
+```
+
+```
+$ sudo vim myapp/views.py
+```
+```py
+# views.py
+from django.shortcuts import render
+
+from django.http import HttpResponse
 
 
+def index(request):
+    return HttpResponse('Hello, world.')
+```
+
+## start development server again
+```
+$ docker run -it --rm -v ${PWD}:/code -p 8000:8000 django python manage.py runserver 0.0.0.0:8000
+Watching for file changes with StatReloader
+Performing system checks...
+
+System check identified no issues (0 silenced).
+June 20, 2020 - 17:29:09
+Django version 2.2.1, using settings 'myproject.settings'
+Starting development server at http://0.0.0.0:8000/
+Quit the server with CONTROL-C.
+```
+
+## access the django page
+![](./images/77.png)
 

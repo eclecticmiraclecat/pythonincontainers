@@ -1,0 +1,9 @@
+# ARG to parameterize the base image, if values are not set during build time the default values will be used
+ARG BaseImage=python
+ARG ImageTag=3.7.3
+FROM $BaseImage:$ImageTag
+# PYTHONUNBUFFERED 1 tells python to print to standard output immediately without buffering
+ENV PYTHONUNBUFFERED 1
+ARG DjangoVersion=2.2.1
+RUN pip install Django==$DjangoVersion
+WORKDIR /code
