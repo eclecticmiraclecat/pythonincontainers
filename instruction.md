@@ -1420,3 +1420,192 @@ Django version 2.2.1, using settings 'mysite.settings'
 Starting development server at http://0.0.0.0:8000/
 Quit the server with CONTROL-C.
 ```
+
+# Use cython to improve calculations
+- cython will translate python code to c language
+- flask app will calculate factors and the time it took
+```
+$ git clone https://github.com/pythonincontainers/multistage
+
+$ cd multistage
+
+$ cat factors.py
+from typing import List
+
+def find_factors(param: int) -> List[int]:
+    result = [1]
+    if param > 1:
+        for i in range(2, param+1):
+            if param % i == 0:
+                result += [i]
+    return result
+
+$ cat compile.py
+from distutils.core import setup
+from distutils.extension import Extension
+from Cython.Distutils import build_ext
+
+ext_modules = [
+    Extension("factors",
+    ["factors.py"],
+    libraries=["m"],
+    extra_compile_args=["-ffast-math"]
+    ),
+]
+
+setup(
+    name = 'My factors lib',
+    cmdclass = {'build_ext': build_ext},
+    ext_modules = ext_modules
+)
+
+$ cat Dockerfile.cython-standard 
+FROM python:3.7.3
+WORKDIR /app
+COPY . .
+RUN pip install cython==0.28.5
+RUN python compile.py build_ext --inplace
+RUN pip install -r requirements.txt
+CMD ["python","factors_flask.py"]
+```
+## build the image
+```
+$ docker build -t factors_flask:cython-standard -f Dockerfile.cython-standard .
+```
+## view the created c files
+```
+$ docker run -it --rm factors_flask:cython-standard bash
+root@48c6d90a386e:/app# ls -l
+total 308
+drwxr-xr-x 3 root root   4096 Jun 20 10:18 build
+-rw-rw-r-- 1 root root    355 Jun 20 10:10 compile.py
+-rw-r--r-- 1 root root 150435 Jun 20 10:18 factors.c
+-rwxr-xr-x 1 root root 135360 Jun 20 10:18 factors.cpython-37m-x86_64-linux-gnu.so
+-rw-rw-r-- 1 root root    888 Jun 20 10:10 factors.py
+-rw-rw-r-- 1 root root   1007 Jun 20 10:10 factors.pyx
+-rw-rw-r-- 1 root root   2870 Jun 20 10:10 factors_flask.py
+-rw-rw-r-- 1 root root     28 Jun 20 10:10 requirements.txt
+```
+## start the flask app
+```
+$ docker run -it --rm -p 5000:5000 factors_flask:cython-standard
+ * Serving Flask app "factors_flask" (lazy loading)
+ * Environment: production
+   WARNING: This is a development server. Do not use it in a production deployment.
+   Use a production WSGI server instead.
+ * Debug mode: off
+ * Running on http://0.0.0.0:5000/ (Press CTRL+C to quit)
+```
+## access the page
+![](./images/69.png)
+
+
+## compile with factors.pyx file
+```
+$ cat factors.pyx
+from typing import List
+cimport cython
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.nonecheck(False)
+@cython.cdivision(True)
+
+def find_factors(int param):
+    result = [1]
+    cdef int i
+    if param > 1:
+        for i in range(2, param+1):
+            if param % i == 0:
+                result += [i]
+    return result
+
+$ cat compile.py
+from distutils.core import setup
+from distutils.extension import Extension
+from Cython.Distutils import build_ext
+
+ext_modules = [
+    Extension("factors",
+    ["factors.pyx"],
+    libraries=["m"],
+    extra_compile_args=["-ffast-math"]
+    ),
+]
+
+setup(
+    name = 'My factors lib',
+    cmdclass = {'build_ext': build_ext},
+    ext_modules = ext_modules
+)
+```
+## build the image with optimized factors.pyx
+```
+$ docker build -t factors_flask:cython-optimized -f Dockerfile.cython-standard .
+```
+## start the flask app
+```
+$ docker run -it --rm -p 5000:5000 factors_flask:cython-optimized
+ * Serving Flask app "factors_flask" (lazy loading)
+ * Environment: production
+   WARNING: This is a development server. Do not use it in a production deployment.
+   Use a production WSGI server instead.
+ * Debug mode: off
+ * Running on http://0.0.0.0:5000/ (Press CTRL+C to quit)
+```
+## access the page
+![](./images/70.png)
+
+> SPEED increased 10x
+
+# Multistage build
+## view the image size
+```
+$ docker images factors_flask
+REPOSITORY          TAG                 IMAGE ID            CREATED             SIZE
+factors_flask       cython-optimized    234666195281        5 minutes ago       957MB
+factors_flask       cython-standard     f96e06ebdb1f        14 minutes ago      957MB
+```
+## reduce cython image size
+![](./images/67.png)
+![](./images/68.png)
+```
+$ cat Dockerfile.cython-multi 
+FROM python:3.7.3 as dev
+WORKDIR /app
+COPY . .
+RUN pip install cython==0.28.5
+RUN python compile.py build_ext --inplace
+
+FROM python:3.7.3-slim as prod
+WORKDIR /app
+COPY factors_flask.py requirements.txt /app/
+COPY --from=dev /app/factors.cpython-37m-x86_64-linux-gnu.so /app
+RUN pip install -r requirements.txt
+CMD ["python","factors_flask.py"]
+```
+## build the multi stage image
+```
+$ docker build -t factors_flask:cython-multi -f Dockerfile.cython-multi .
+```
+## start the flask app
+```
+$ docker run -it --rm -p 5000:5000 factors_flask:cython-multi
+ * Serving Flask app "factors_flask" (lazy loading)
+ * Environment: production
+   WARNING: This is a development server. Do not use it in a production deployment.
+   Use a production WSGI server instead.
+ * Debug mode: off
+ * Running on http://0.0.0.0:5000/ (Press CTRL+C to quit)
+```
+## access the page
+![](./images/71.png)
+
+## view the image size
+```
+$ docker images factors_flask
+REPOSITORY          TAG                 IMAGE ID            CREATED             SIZE
+factors_flask       cython-multi        ab39becc59b8        2 minutes ago       154MB
+factors_flask       cython-optimized    234666195281        19 minutes ago      957MB
+factors_flask       cython-standard     f96e06ebdb1f        29 minutes ago      957MB
+```
