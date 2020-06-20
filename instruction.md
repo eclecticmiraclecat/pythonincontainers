@@ -1224,6 +1224,7 @@ python manage.py migrate
 /bin/bash create-admin.sh
 
 python manage.py runserver 0.0.0.0:8000
+```
 
 ## build the image
 ```
