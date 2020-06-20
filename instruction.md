@@ -1201,6 +1201,7 @@ DATABASES = {
 - buildtime to prepare the filesystem, install app and libraries
 - migration and admin creation is created after the container is started
 
+```
 $ cat Dockerfile.runtime
 FROM python:3.7.3
 WORKDIR /django-mysite
@@ -1224,5 +1225,197 @@ python manage.py migrate
 
 python manage.py runserver 0.0.0.0:8000
 
+## build the image
+```
+$ docker build -t runtime -f Dockerfile.runtime .
+```
+
+## start the container
+> Django version 2.2.1 is installed
+
+```
+$ docker run -it --rm -p 8000:8000 runtime
+Collecting Django==2.2.1 (from -r requirements.txt (line 1))
+  Downloading https://files.pythonhosted.org/packages/b1/1d/2476110614367adfb079a9bc718621f9fc8351e9214e1750cae1832d4090/Django-2.2.1-py3-none-any.whl (7.4MB)
+     |████████████████████████████████| 7.5MB 3.3MB/s 
+Collecting sqlparse (from Django==2.2.1->-r requirements.txt (line 1))
+  Downloading https://files.pythonhosted.org/packages/85/ee/6e821932f413a5c4b76be9c5936e313e4fc626b33f16e027866e1d60f588/sqlparse-0.3.1-py2.py3-none-any.whl (40kB)
+     |████████████████████████████████| 40kB 5.2MB/s 
+Collecting pytz (from Django==2.2.1->-r requirements.txt (line 1))
+  Downloading https://files.pythonhosted.org/packages/4f/a4/879454d49688e2fad93e59d7d4efda580b783c745fd2ec2a3adf87b0808d/pytz-2020.1-py2.py3-none-any.whl (510kB)
+     |████████████████████████████████| 512kB 3.8MB/s 
+Installing collected packages: sqlparse, pytz, Django
+Successfully installed Django-2.2.1 pytz-2020.1 sqlparse-0.3.1
+WARNING: You are using pip version 19.1.1, however version 20.1.1 is available.
+You should consider upgrading via the 'pip install --upgrade pip' command.
+Operations to perform:
+  Apply all migrations: admin, auth, contenttypes, polls, sessions
+Running migrations:
+  Applying contenttypes.0001_initial... OK
+  Applying auth.0001_initial... OK
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying contenttypes.0002_remove_content_type_name... OK
+  Applying auth.0002_alter_permission_name_max_length... OK
+  Applying auth.0003_alter_user_email_max_length... OK
+  Applying auth.0004_alter_user_username_opts... OK
+  Applying auth.0005_alter_user_last_login_null... OK
+  Applying auth.0006_require_contenttypes_0002... OK
+  Applying auth.0007_alter_validators_add_error_messages... OK
+  Applying auth.0008_alter_user_username_max_length... OK
+  Applying auth.0009_alter_user_last_name_max_length... OK
+  Applying auth.0010_alter_group_name_max_length... OK
+  Applying auth.0011_update_proxy_permissions... OK
+  Applying polls.0001_initial... OK
+  Applying sessions.0001_initial... OK
+Watching for file changes with StatReloader
+Performing system checks...
+
+System check identified no issues (0 silenced).
+June 20, 2020 - 06:09:46
+Django version 2.2.1, using settings 'mysite.settings'
+Starting development server at http://0.0.0.0:8000/
+Quit the server with CONTROL-C.
+```
+![](./images/58.png)
+![](./images/59.png)
+![](./images/60.png)
+![](./images/61.png)
+![](./images/62.png)
+
+## if the container is restarted, django will be installed again and the created polls question will be absent
+![](./images/63.png)
+
+## set django version as a variable
+```
+$ vim Dockerfile.runtime
+FROM python:3.7.3
+WORKDIR /django-mysite
+COPY . .
+CMD ["/bin/bash", "run-server.sh"]
+ENV DJANGO_VER 2.2.1
+
+$ vim requirements.txt 
+# Django==2.2.1
+Django==${DJANGO_VER}
+
 $ docker build -t runtime -f Dockerfile.runtime .
 
+$ docker run -it --rm -p 8000:8000 runtime
+Collecting Django==2.2.1 (from -r requirements.txt (line 2))
+  Downloading https://files.pythonhosted.org/packages/b1/1d/2476110614367adfb079a9bc718621f9fc8351e9214e1750cae1832d4090/Django-2.2.1-py3-none-any.whl (7.4MB)
+     |████████████████████████████████| 7.5MB 3.7MB/s 
+```
+
+## change django version using the --env argument
+```
+$ docker run -it --rm -p 8000:8000 -e DJANGO_V=2.1.8 runtime
+Collecting Django==2.1.8 (from -r requirements.txt (line 2))
+  Downloading https://files.pythonhosted.org/packages/a9/e4/fb8f473fe8ee659859cb712e25222243bbd55ece7c319301eeb60ccddc46/Django-2.1.8-py3-none-any.whl (7.3MB)
+     |████████████████████████████████| 7.3MB 3.1MB/s 
+```
+
+## 2. Buildtime Initialization
+
+```
+$ cat Dockerfile.buildtime 
+FROM python:3.7.3
+WORKDIR /django-mysite
+COPY . .
+ARG DJANGO_VER=2.2.1
+RUN pip install -r requirements.txt
+RUN mkdir -p /data && python manage.py migrate
+RUN bash create-admin.sh
+VOLUME /data
+CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+
+$ docker build -t buildtime -f Dockerfile.buildtime .
+
+$ docker volume create buildtime-vol
+buildtime-vol
+
+$ docker run -it --rm -v buildtime-vol:/data -p 8000:8000 buildtime
+Watching for file changes with StatReloader
+Performing system checks...
+
+System check identified no issues (0 silenced).
+June 20, 2020 - 08:00:04
+Django version 2.2.1, using settings 'mysite.settings'
+Starting development server at http://0.0.0.0:8000/
+Quit the server with CONTROL-C.
+
+```
+![](./images/58.png)
+![](./images/59.png)
+![](./images/64.png)
+![](./images/62.png)
+![](./images/65.png)
+![](./images/66.png)
+
+## restart the container and the polls question will be remain there
+```
+$ docker run -it --rm -v buildtime-vol:/data -p 8000:8000 buildtime
+Watching for file changes with StatReloader
+Performing system checks...
+
+System check identified no issues (0 silenced).
+June 20, 2020 - 09:37:33
+Django version 2.2.1, using settings 'mysite.settings'
+Starting development server at http://0.0.0.0:8000/
+Quit the server with CONTROL-C.
+```
+![](./images/66.png)
+
+# run image without building it using git
+```
+$ docker run -it --rm -p 8000:8000 python:3.7.3 bash -c "git clone https://github.com/pythonincontainers/buildtime-runtime /django-mysite; cd django-mysite; bash run-server.sh"
+Cloning into '/django-mysite'...
+remote: Enumerating objects: 14, done.
+remote: Counting objects: 100% (14/14), done.
+remote: Compressing objects: 100% (3/3), done.
+remote: Total 70 (delta 11), reused 10 (delta 10), pack-reused 56
+Unpacking objects: 100% (70/70), done.
+Collecting Django==2.2.1 (from -r requirements.txt (line 1))
+  Downloading https://files.pythonhosted.org/packages/b1/1d/2476110614367adfb079a9bc718621f9fc8351e9214e1750cae1832d4090/Django-2.2.1-py3-none-any.whl (7.4MB)
+     |████████████████████████████████| 7.5MB 6.8MB/s 
+Collecting pytz (from Django==2.2.1->-r requirements.txt (line 1))
+  Downloading https://files.pythonhosted.org/packages/4f/a4/879454d49688e2fad93e59d7d4efda580b783c745fd2ec2a3adf87b0808d/pytz-2020.1-py2.py3-none-any.whl (510kB)
+     |████████████████████████████████| 512kB 6.9MB/s 
+Collecting sqlparse (from Django==2.2.1->-r requirements.txt (line 1))
+  Downloading https://files.pythonhosted.org/packages/85/ee/6e821932f413a5c4b76be9c5936e313e4fc626b33f16e027866e1d60f588/sqlparse-0.3.1-py2.py3-none-any.whl (40kB)
+     |████████████████████████████████| 40kB 6.8MB/s 
+Installing collected packages: pytz, sqlparse, Django
+Successfully installed Django-2.2.1 pytz-2020.1 sqlparse-0.3.1
+WARNING: You are using pip version 19.1.1, however version 20.1.1 is available.
+You should consider upgrading via the 'pip install --upgrade pip' command.
+Operations to perform:
+  Apply all migrations: admin, auth, contenttypes, polls, sessions
+Running migrations:
+  Applying contenttypes.0001_initial... OK
+  Applying auth.0001_initial... OK
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying contenttypes.0002_remove_content_type_name... OK
+  Applying auth.0002_alter_permission_name_max_length... OK
+  Applying auth.0003_alter_user_email_max_length... OK
+  Applying auth.0004_alter_user_username_opts... OK
+  Applying auth.0005_alter_user_last_login_null... OK
+  Applying auth.0006_require_contenttypes_0002... OK
+  Applying auth.0007_alter_validators_add_error_messages... OK
+  Applying auth.0008_alter_user_username_max_length... OK
+  Applying auth.0009_alter_user_last_name_max_length... OK
+  Applying auth.0010_alter_group_name_max_length... OK
+  Applying auth.0011_update_proxy_permissions... OK
+  Applying polls.0001_initial... OK
+  Applying sessions.0001_initial... OK
+Watching for file changes with StatReloader
+Performing system checks...
+
+System check identified no issues (0 silenced).
+June 20, 2020 - 09:45:43
+Django version 2.2.1, using settings 'mysite.settings'
+Starting development server at http://0.0.0.0:8000/
+Quit the server with CONTROL-C.
+```
