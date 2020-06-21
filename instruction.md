@@ -1816,3 +1816,228 @@ Quit the server with CONTROL-C.
 ## access the django page
 ![](./images/77.png)
 
+# Django Containerization for Production
+![](./images/78.png)
+![](./images/79.png)
+![](./images/80.png)
+
+> Database Software
+
+* postgres
+* mysql
+* mariadb
+
+> Application Server
+
+* gunicorn
+* uwsgi
+
+> Proxy Server & Load Balance, SSL termination
+
+* nginx
+
+> Cache Server
+
+* memcache
+* redis
+
+![](./images/81.png)
+![](./images/82.png)
+![](./images/83.png)
+
+## create a demo app
+- quickly present how poll works
+- also able to add questions using admin
+- db already setup
+![](./images/84.png)
+
+```
+$ git clone https://github.com/pythonincontainers/django-polls
+
+$ cd django-polls
+
+$ cat Dockerfile.demo1
+ARG BaseImage
+FROM $BaseImage
+ENV PYTHONUNBUFFERED 1
+WORKDIR /code
+COPY . .
+EXPOSE 8000
+RUN python manage.py makemigrations polls && \
+    python manage.py migrate && \
+    python manage.py loaddata initial_data.json && \
+    python manage.py collectstatic
+ENTRYPOINT ["python", "manage.py"]
+CMD ["runserver", "0:8000"]
+```
+
+## Database is sqlite3 in the database dictionary
+```
+$ grep -A5 DATABASES mysite/settings.py 
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': os.path.join(BASE_DIR,'db.sqlite3'),
+    }
+}
+```
+
+## all the database data are in initial_data.json and it will be loaded at image build to sqlite3
+```
+$ head initial_data.json 
+[
+{
+    "model": "polls.question",
+    "pk": 1,
+    "fields": {
+        "question_text": "How are you?",
+        "pub_date": "2019-06-01T17:00:27Z"
+    }
+},
+{
+```
+
+## build the images
+```
+$ docker build -t django-polls:demo1 -f Dockerfile.demo1 --build-arg BaseImage=django .
+```
+
+## start the django app
+```
+$ docker run -d --name polls-demo -p 8000:8000 django-polls:demo1
+bd87f6bd6155b9f1cfbbc2295aa8acc3f64c00e218780eefa24272a98b360f6d
+```
+## access the page, the questions are already in the database
+![](./images/85.png)
+
+## create django admin user
+
+### 1. use manage.py
+```
+$ docker exec -it polls-demo python manage.py createsuperuser
+Username (leave blank to use 'root'): admin
+Email address: admin@example.com
+Password: 
+Password (again): 
+The password is too similar to the username.
+This password is too short. It must contain at least 8 characters.
+This password is too common.
+Bypass password validation and create user anyway? [y/N]: y
+Superuser created successfully.
+```
+### admin page should be accessible
+![](./images/86.png)
+
+### automate admin user creation using the generated admin data
+```
+$ docker exec -it polls-demo python manage.py dumpdata auth.user --indent 4
+[
+{
+    "model": "auth.user",
+    "pk": 1,
+    "fields": {
+        "password": "pbkdf2_sha256$150000$46gZSRnic9aa$PYo7PMHYdUFdx+hMuEQgIOBthk04TGwcEe/UUS04CMc=",
+        "last_login": null,
+        "is_superuser": true,
+        "username": "admin",
+        "first_name": "",
+        "last_name": "",
+        "email": "admin@example.com",
+        "is_staff": true,
+        "is_active": true,
+        "date_joined": "2020-06-21T08:51:30.421Z",
+        "groups": [],
+        "user_permissions": []
+    }
+}
+]
+```
+### paste the data into intial_data.json
+```
+$ tail -n19 initial_data.json 
+{
+    "model": "auth.user",
+    "pk": 1,
+    "fields": {
+        "password": "pbkdf2_sha256$150000$46gZSRnic9aa$PYo7PMHYdUFdx+hMuEQgIOBthk04TGwcEe/UUS04CMc=",
+        "last_login": null,
+        "is_superuser": true,
+        "username": "admin",
+        "first_name": "",
+        "last_name": "",
+        "email": "admin@example.com",
+        "is_staff": true,
+        "is_active": true,
+        "date_joined": "2020-06-21T08:51:30.421Z",
+        "groups": [],
+        "user_permissions": []
+    }
+}
+]
+```
+### build django image again
+```
+$ docker rm -f polls-demo
+
+$ docker build -t django-polls:demo1 -f Dockerfile.demo1 --build-arg BaseImage=django .
+```
+### start the app
+```
+$ docker run -d --name polls-demo -p 8000:8000 django-polls:demo1
+8197c0db90d8392bbfb1c1e065991f5f033800577643373254937a826bdddd5c
+```
+### access the admin page and login into it
+![](./images/86.png)
+
+
+### 2. use python script to create admin user
+- restore original content of initial_data.json
+
+```
+$ cat Dockerfile.demo2
+ARG BaseImage
+FROM $BaseImage
+ENV PYTHONUNBUFFERED 1
+WORKDIR /code
+COPY . .
+EXPOSE 8000
+RUN python manage.py makemigrations polls && \
+    python manage.py migrate && \
+    python manage.py loaddata initial_data.json && \
+    python manage.py collectstatic && \
+    echo "from django.contrib.auth.models import User; User.objects.create_superuser('admin', 'admin@example.com', 'admin')" | python manage.py shell
+ENTRYPOINT ["python", "manage.py"]
+CMD ["runserver", "0:8000"]
+```
+### build the image
+```
+$ docker build -t django-polls:demo2 -f Dockerfile.demo2 --build-arg BaseImage=django .
+```
+### start the app
+```
+$ docker run -it --rm -p 8000:8000 django-polls:demo2
+Watching for file changes with StatReloader
+Performing system checks...
+
+System check identified no issues (0 silenced).
+June 21, 2020 - 15:30:09
+Django version 2.2.1, using settings 'mysite.settings'
+Starting development server at http://0:8000/
+Quit the server with CONTROL-C.
+```
+### access the admin page
+![](./images/86.png)
+
+## run test for the demo page
+```
+$ docker run -it --rm django-polls:demo2 test
+Creating test database for alias 'default'...
+System check identified no issues (0 silenced).
+........
+----------------------------------------------------------------------
+Ran 8 tests in 0.092s
+
+OK
+Destroying test database for alias 'default'...
+```
+
