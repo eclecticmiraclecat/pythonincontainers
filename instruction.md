@@ -2041,3 +2041,155 @@ OK
 Destroying test database for alias 'default'...
 ```
 
+# Application Servers to Run Django and Flask
+- will replace django dev server
+![](./images/87.png)
+![](./images/88.png)
+
+## 1. gunicorn
+```
+$ cd django-polls/base_image
+
+$ cat Dockerfile.mygunicorn 
+ARG BaseImage=python
+ARG ImageTag=3.7.3
+FROM $BaseImage:$ImageTag
+ENV PYTHONUNBUFFERED 1
+ARG DjangoVersion=2.2.1
+ARG GunicornVersion=19.9.0
+RUN pip install Django==$DjangoVersion gunicorn==$GunicornVersion
+```
+## build the image
+```
+$ docker build -t gunicorn -f Dockerfile.mygunicorn .
+```
+
+## build django image
+```
+$ cd ..
+
+$ cat Dockerfile.gunicorn 
+ARG BaseImage
+FROM $BaseImage
+ENV PYTHONUNBUFFERED 1
+WORKDIR /code
+COPY . .
+EXPOSE 8000
+RUN python manage.py makemigrations polls && \
+    python manage.py migrate && \
+    python manage.py loaddata initial_data.json && \
+    python manage.py collectstatic && \
+    echo "from django.contrib.auth.models import User; User.objects.create_superuser('admin', 'admin@example.com', 'admin')" | python manage.py shell
+CMD ["gunicorn", "-c", "gunicorn.ini", "mysite.wsgi"]
+```
+## gunicorn config file
+```
+$ cat gunicorn.ini 
+bind = "0.0.0.0:8000"
+workers = 2
+worker_connections = 1000
+timeout = 30
+user = None
+group = None
+```
+
+## build the image base on gunicorn image
+```
+$ docker build -t django-polls:gunicorn -f Dockerfile.gunicorn --build-arg BaseImage=gunicorn .
+```
+
+## start the app
+```
+$ docker run -it --rm -p 8000:8000 django-polls:gunicorn
+[2020-06-21 15:47:17 +0000] [1] [INFO] Starting gunicorn 19.9.0
+[2020-06-21 15:47:17 +0000] [1] [INFO] Listening at: http://0.0.0.0:8000 (1)
+[2020-06-21 15:47:17 +0000] [1] [INFO] Using worker: sync
+[2020-06-21 15:47:17 +0000] [9] [INFO] Booting worker with pid: 9
+[2020-06-21 15:47:17 +0000] [10] [INFO] Booting worker with pid: 10
+```
+## access the page
+![](./images/85.png)
+
+## 2. uwsgi
+
+```
+$ cd base_image
+
+$ cat Dockerfile.myuwsgi 
+ARG BaseImage=python
+ARG ImageTag=3.7.3
+FROM $BaseImage:$ImageTag
+ENV PYTHONUNBUFFERED 1
+ARG DjangoVersion=2.2.1
+ARG uWSGIVersion=2.0.18
+RUN pip install Django==$DjangoVersion uwsgi==$uWSGIVersion
+```
+
+## build the image
+```
+$ docker build -t uwsgi -f Dockerfile.myuwsgi .
+```
+
+## build django image
+```
+$ cd ..
+
+$ cat Dockerfile.uwsgi
+ARG BaseImage
+FROM $BaseImage
+ENV PYTHONUNBUFFERED 1
+WORKDIR /code
+COPY . .
+EXPOSE 8000
+RUN python manage.py makemigrations polls && \
+    python manage.py migrate && \
+    python manage.py loaddata initial_data.json && \
+    python manage.py collectstatic && \
+    echo "from django.contrib.auth.models import User; User.objects.create_superuser('admin', 'admin@example.com', 'admin')" | python manage.py shell
+CMD ["uwsgi", "uwsgi-http.ini"]
+```
+
+## uwsgi config file
+```
+$ cat uwsgi-http.ini 
+[uwsgi]
+chdir = /code
+module = mysite.wsgi:application
+master = True
+pidfile = /tmp/project-master.pid
+vacuum = True
+harakiri = 20
+max-requests = 5000
+http-socket = 0.0.0.0:8000
+processes = 2
+```
+
+## build the image base on uwsqi image
+```
+$ docker build -t django-polls:uwsgi -f Dockerfile.uwsgi --build-arg BaseImage=uwsgi .
+```
+
+## start the app
+```
+$ docker run -it --rm -p 8000:8000 django-polls:uwsgi
+[uWSGI] getting INI configuration from uwsgi-http.ini
+*** Starting uWSGI 2.0.18 (64bit) on [Sun Jun 21 15:57:42 2020] ***
+compiled with version: 6.3.0 20170516 on 21 June 2020 15:53:04
+os: Linux-4.15.0-101-generic #102-Ubuntu SMP Mon May 11 10:07:26 UTC 2020
+nodename: 01a83621e421
+machine: x86_64
+clock source: unix
+pcre jit disabled
+detected number of CPU cores: 4
+current working directory: /code
+writing pidfile to /tmp/project-master.pid
+detected binary path: /usr/local/bin/uwsgi
+*** uWSGI is running in multiple interpreter mode ***
+spawned uWSGI master process (pid: 1)
+spawned uWSGI worker 1 (pid: 6, cores: 1)
+spawned uWSGI worker 2 (pid: 7, cores: 1)
+```
+
+## access the page
+![](./images/85.png)
+
