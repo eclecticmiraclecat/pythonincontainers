@@ -2193,3 +2193,270 @@ spawned uWSGI worker 2 (pid: 7, cores: 1)
 ## access the page
 ![](./images/85.png)
 
+# Production grade Database Engines - PostgreSQL
+
+![](./images/89.png)
+![](./images/90.png)
+![](./images/91.png)
+![](./images/92.png)
+![](./images/93.png)
+![](./images/94.png)
+![](./images/95.png)
+
+## use network to connect all the containers
+```
+$ docker network create polls_net
+af0609ed9d6c8910fe71abdee594c0fabebf7474b855998b916ff1ccdd051aea
+```
+
+## start the postgres container with created network
+```
+$ docker run -d --name db --network polls_net -e POSTGRES_PASSWORD=myprecious postgres
+169f3dcf04dba6e13203c5ab0872a3eb6ef87fe414e6478b7da51dec915fc7de
+```
+
+## create user and database
+### start psql
+```
+$ docker exec -it db psql -U postgres
+psql (12.3 (Debian 12.3-1.pgdg100+1))
+Type "help" for help.
+
+postgres=# 
+```
+### or
+```
+$ docker run -it --rm --network polls_net postgres psql -h db -U postgres
+Password for user postgres: 
+psql (12.3 (Debian 12.3-1.pgdg100+1))
+Type "help" for help.
+
+postgres=# 
+```
+
+### create postgres user and db
+```
+postgres=# CREATE USER pollsuser WITH PASSWORD 'pollpass' CREATEDB;
+CREATE ROLE
+
+postgres=# CREATE DATABASE pollsdb WITH OWNER pollsuser;
+CREATE DATABASE
+
+postgres-# \l
+                                 List of databases
+   Name    |   Owner   | Encoding |  Collate   |   Ctype    |   Access privileges   
+-----------+-----------+----------+------------+------------+-----------------------
+ pollsdb   | pollsuser | UTF8     | en_US.utf8 | en_US.utf8 | 
+ postgres  | postgres  | UTF8     | en_US.utf8 | en_US.utf8 | 
+ template0 | postgres  | UTF8     | en_US.utf8 | en_US.utf8 | =c/postgres          +
+           |           |          |            |            | postgres=CTc/postgres
+ template1 | postgres  | UTF8     | en_US.utf8 | en_US.utf8 | =c/postgres          +
+           |           |          |            |            | postgres=CTc/postgres
+(4 rows)
+
+postgres-# \du
+                                   List of roles
+ Role name |                         Attributes                         | Member of 
+-----------+------------------------------------------------------------+-----------
+ pollsuser | Create DB                                                  | {}
+ postgres  | Superuser, Create role, Create DB, Replication, Bypass RLS | {}
+
+```
+#### or pollsuser as admin user instead of postgres default admin user
+```
+$ docker rm -f db
+db
+
+$ docker run -d --name db --network polls_net -e POSTGRES_DB=pollsdb -e POSTGRES_USER=pollsuser -e POSTGRES_PASSWORD=pollspass postgres
+9de60ccbad297ae397c2eee40acf85a9b760c7a32424738efe6db0e77bfc389c
+```
+
+## build django image with posgres
+```
+$ cat Dockerfile.postgres 
+ARG BaseImage
+FROM $BaseImage
+ENV PYTHONUNBUFFERED 1
+WORKDIR /code
+COPY . .
+EXPOSE 8000
+RUN pip install psycopg2
+RUN python manage.py makemigrations polls && python manage.py collectstatic
+ARG DjangoSettings=mysite.settings_postgres
+ENV DJANGO_SETTINGS_MODULE=$DjangoSettings
+CMD ["gunicorn", "-c", "gunicorn.ini", "mysite.wsgi"]
+
+$ grep -A9 DATABASES mysite/settings_postgres.py 
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'pollsdb',
+        'USER': 'pollsuser',
+        'PASSWORD': 'pollspass',
+        'HOST': 'db',
+        'PORT': '5432',
+    }
+}
+
+$ docker build -t django-polls:postgres -f Dockerfile.postgres --build-arg BaseImage=gunicorn .
+```
+
+## initialize the db
+```
+$ docker run -it --rm --network polls_net django-polls:postgres python manage.py migrate
+Operations to perform:
+  Apply all migrations: admin, auth, contenttypes, polls, sessions
+Running migrations:
+  Applying contenttypes.0001_initial... OK
+  Applying auth.0001_initial... OK
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying contenttypes.0002_remove_content_type_name... OK
+  Applying auth.0002_alter_permission_name_max_length... OK
+  Applying auth.0003_alter_user_email_max_length... OK
+  Applying auth.0004_alter_user_username_opts... OK
+  Applying auth.0005_alter_user_last_login_null... OK
+  Applying auth.0006_require_contenttypes_0002... OK
+  Applying auth.0007_alter_validators_add_error_messages... OK
+  Applying auth.0008_alter_user_username_max_length... OK
+  Applying auth.0009_alter_user_last_name_max_length... OK
+  Applying auth.0010_alter_group_name_max_length... OK
+  Applying auth.0011_update_proxy_permissions... OK
+  Applying polls.0001_initial... OK
+  Applying sessions.0001_initial... OK
+
+$ docker run -it --rm --network polls_net django-polls:postgres python manage.py loaddata initial_data.json
+Installed 8 object(s) from 1 fixture(s)
+
+$ docker run -it --rm --network polls_net django-polls:postgres python manage.py createsuperuser
+Username (leave blank to use 'root'): admin
+Email address: admin@example.com
+Password: 
+Password (again): 
+The password is too similar to the username.
+This password is too short. It must contain at least 8 characters.
+This password is too common.
+Bypass password validation and create user anyway? [y/N]: y
+Superuser created successfully.
+
+```
+
+## start the django app
+```
+$ docker run -it --rm --network polls_net -p 8000:8000 django-polls:postgres
+[2020-06-23 18:54:16 +0000] [1] [INFO] Starting gunicorn 19.9.0
+[2020-06-23 18:54:16 +0000] [1] [INFO] Listening at: http://0.0.0.0:8000 (1)
+[2020-06-23 18:54:16 +0000] [1] [INFO] Using worker: sync
+[2020-06-23 18:54:16 +0000] [9] [INFO] Booting worker with pid: 9
+[2020-06-23 18:54:16 +0000] [10] [INFO] Booting worker with pid: 10
+```
+
+## access the page
+![](./images/85.png)
+
+## run django test
+```
+$ docker run -it --rm --network polls_net -p 8000:8000 django-polls:postgres python manage.py test
+Creating test database for alias 'default'...
+System check identified no issues (0 silenced).
+........
+----------------------------------------------------------------------
+Ran 8 tests in 0.138s
+
+OK
+Destroying test database for alias 'default'...
+```
+
+## Issue with db engine, if the container is deleted all the data will be lost
+```
+$ docker rm -f db
+db
+```
+
+## keep the data in a persistent volume
+### create the volume
+```
+$ docker volume create polls_vol
+polls_vol
+```
+
+### start container with attaching to volume
+```
+$ docker run -d --name db --network polls_net -e POSTGRES_PASSWORD=myprecious -v polls_vol:/var/lib/postgresql/data postgres
+99536111fa2eac75e7c24f06f1cd33da92793eac8fd82e3521e1156ad738d22f
+```
+
+## create user and db using pgadmin
+```
+$ docker run -d --network polls_net -e "PGADMIN_DEFAULT_EMAIL=admin@example.com" -e "PGADMIN_DEFAULT_PASSWORD=admin" -p 8088:80 dpage/pgadmin4
+e6a75cba510229ee94cfdf0cd1d50ac281f91feb9d40cbb6a72920476282c46a
+```
+
+![](./images/96.png)
+### add new server
+![](./images/97.png)
+![](./images/98.png)
+### create user
+![](./images/99.png)
+![](./images/100.png)
+![](./images/101.png)
+### create db
+![](./images/102.png)
+
+## initialize the db
+```
+$ docker run -it --rm --network polls_net django-polls:postgres python manage.py migrate
+Operations to perform:
+  Apply all migrations: admin, auth, contenttypes, polls, sessions
+Running migrations:
+  Applying contenttypes.0001_initial... OK
+  Applying auth.0001_initial... OK
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying contenttypes.0002_remove_content_type_name... OK
+  Applying auth.0002_alter_permission_name_max_length... OK
+  Applying auth.0003_alter_user_email_max_length... OK
+  Applying auth.0004_alter_user_username_opts... OK
+  Applying auth.0005_alter_user_last_login_null... OK
+  Applying auth.0006_require_contenttypes_0002... OK
+  Applying auth.0007_alter_validators_add_error_messages... OK
+  Applying auth.0008_alter_user_username_max_length... OK
+  Applying auth.0009_alter_user_last_name_max_length... OK
+  Applying auth.0010_alter_group_name_max_length... OK
+  Applying auth.0011_update_proxy_permissions... OK
+  Applying polls.0001_initial... OK
+  Applying sessions.0001_initial... OK
+
+$ docker run -it --rm --network polls_net django-polls:postgres python manage.py loaddata initial_data.json
+Installed 8 object(s) from 1 fixture(s)
+
+$ docker run -it --rm --network polls_net django-polls:postgres python manage.py createsuperuser
+Username (leave blank to use 'root'): admin
+Email address: admin@example.com
+Password:
+Password (again):
+The password is too similar to the username.
+This password is too short. It must contain at least 8 characters.
+This password is too common.
+Bypass password validation and create user anyway? [y/N]: y
+Superuser created successfully.
+
+```
+
+## start the django app
+```
+$ docker run -it --rm --network polls_net -p 8000:8000 django-polls:postgres
+[2020-06-23 19:42:29 +0000] [1] [INFO] Starting gunicorn 19.9.0
+[2020-06-23 19:42:29 +0000] [1] [INFO] Listening at: http://0.0.0.0:8000 (1)
+[2020-06-23 19:42:29 +0000] [1] [INFO] Using worker: sync
+[2020-06-23 19:42:29 +0000] [15] [INFO] Booting worker with pid: 15
+[2020-06-23 19:42:29 +0000] [16] [INFO] Booting worker with pid: 16
+```
+
+## access the page
+![](./images/85.png)
+
+## check dbrecords using pgadmin
+![](./images/103.png)
