@@ -2460,3 +2460,104 @@ $ docker run -it --rm --network polls_net -p 8000:8000 django-polls:postgres
 
 ## check dbrecords using pgadmin
 ![](./images/103.png)
+
+# Production - grade Database Engines - MariaDB
+> clone of mysql
+
+## create volume
+```
+$ docker volume create maria_vol
+maria_vol
+```
+
+## start mariadb container
+```
+$ docker run -d --name db --network polls_net -e MYSQL_DATABASE=pollsdb -e MYSQL_USER=pollsuser -e MYSQL_PASSWORD=pollspass -e MYSQL_ROOT_PASSWORD=myprecious -v maria_vol:/var/lib/mysql mariadb
+```
+
+## build django image connecting to mariadb
+```
+$ cat Dockerfile.mariadb 
+ARG BaseImage
+FROM $BaseImage
+ENV PYTHONUNBUFFERED 1
+WORKDIR /code
+COPY . .
+EXPOSE 8000
+RUN pip install mysqlclient
+RUN python manage.py makemigrations polls && python manage.py collectstatic
+ARG DjangoSettings=mysite.settings_mariadb
+ENV DJANGO_SETTINGS_MODULE=$DjangoSettings
+CMD ["gunicorn", "-c", "gunicorn.ini", "mysite.wsgi"]
+
+$ grep -A9 DATABASES mysite/settings_mariadb.py 
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'pollsdb',
+        'USER': 'pollsuser',
+        'PASSWORD': 'pollspass',
+        'HOST': 'db',
+        'PORT': '3306',
+    }
+}
+
+$ docker build -t django-polls:mariadb -f Dockerfile.mariadb --build-arg BaseImage=gunicorn .
+```
+
+## initialize the database
+```
+$ docker run -it --rm --network polls_net django-polls:mariadb python manage.py migrate
+Operations to perform:
+  Apply all migrations: admin, auth, contenttypes, polls, sessions
+Running migrations:
+  Applying contenttypes.0001_initial... OK
+  Applying auth.0001_initial... OK
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying contenttypes.0002_remove_content_type_name... OK
+  Applying auth.0002_alter_permission_name_max_length... OK
+  Applying auth.0003_alter_user_email_max_length... OK
+  Applying auth.0004_alter_user_username_opts... OK
+  Applying auth.0005_alter_user_last_login_null... OK
+  Applying auth.0006_require_contenttypes_0002... OK
+  Applying auth.0007_alter_validators_add_error_messages... OK
+  Applying auth.0008_alter_user_username_max_length... OK
+  Applying auth.0009_alter_user_last_name_max_length... OK
+  Applying auth.0010_alter_group_name_max_length... OK
+  Applying auth.0011_update_proxy_permissions... OK
+  Applying polls.0001_initial... OK
+  Applying sessions.0001_initial... OK
+
+$ docker run -it --rm --network polls_net django-polls:mariadb python manage.py loaddata initial_data.json
+Installed 8 object(s) from 1 fixture(s)
+
+$ docker run -it --rm --network polls_net django-polls:mariadb python manage.py createsuperuser
+Username (leave blank to use 'root'): admin
+Email address: admin@example.com
+Password: 
+Password (again): 
+The password is too similar to the username.
+This password is too short. It must contain at least 8 characters.
+This password is too common.
+Bypass password validation and create user anyway? [y/N]: y
+Superuser created successfully.
+```
+
+## start the django app
+```
+$ docker run -it --rm --network polls_net -p 8000:8000 django-polls:mariadb
+[2020-06-24 13:24:45 +0000] [1] [INFO] Starting gunicorn 19.9.0
+[2020-06-24 13:24:45 +0000] [1] [INFO] Listening at: http://0.0.0.0:8000 (1)
+[2020-06-24 13:24:45 +0000] [1] [INFO] Using worker: sync
+[2020-06-24 13:24:45 +0000] [9] [INFO] Booting worker with pid: 9
+[2020-06-24 13:24:45 +0000] [10] [INFO] Booting worker with pid: 10
+```
+
+## access the page
+![](./images/85.png)
+
+
+
+
