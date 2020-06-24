@@ -2558,6 +2558,240 @@ $ docker run -it --rm --network polls_net -p 8000:8000 django-polls:mariadb
 ## access the page
 ![](./images/85.png)
 
+# Implementing Proxy Server
+
+![](./images/104.png)
+
+## start postgres db
+```
+$ docker run -d --name db --network polls_net -e POSTGRES_PASSWORD=myprecious -v polls_vol:/var/lib/postgresql/data postgres
+331cbbef9336b0145643c0c64c08e9f0566624241dacc201e62cdcfa4676bda2
+```
+
+## check if db started properly
+```
+$ docker logs db
+2020-06-24 17:17:13.895 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+2020-06-24 17:17:13.895 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+2020-06-24 17:17:13.966 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+2020-06-24 17:17:14.755 UTC [1] LOG:  database system is ready to accept connections
+```
+
+## build django image with nginx
+```
+$ cat Dockerfile.uwsgi4nginx 
+ARG BaseImage
+FROM $BaseImage
+ENV PYTHONUNBUFFERED 1
+WORKDIR /code
+COPY . .
+EXPOSE 8000
+RUN pip install psycopg2==2.8.2 mysqlclient==1.4.2 cx-Oracle==7.1.3 dj-database-url==0.5.0
+RUN python manage.py makemigrations polls
+ARG DjangoSettings=mysite.settings_universal
+ENV DJANGO_SETTINGS_MODULE=$DjangoSettings
+CMD ["uwsgi", "uwsgi-nginx.ini"]
+
+$ cat uwsgi-nginx.ini 
+[uwsgi]
+chdir = /code
+module = mysite.wsgi:application
+master = True
+pidfile = /tmp/project-master.pid
+vacuum = True
+harakiri = 20
+max-requests = 5000
+socket = 0.0.0.0:8000
+processes = 2
+
+$ docker build -t django-polls:uwsgi4nginx -f Dockerfile.uwsgi4nginx --build-arg BaseImage=uwsgi .
+```
+
+## initialize the database
+```
+$ docker run -it --rm --network polls_net -e "DATABASE_URL=postgres://pollsuser:pollspass@db/pollsdb" django-polls:uwsgi4nginx python manage.py migrate
+Operations to perform:
+  Apply all migrations: admin, auth, contenttypes, polls, sessions
+Running migrations:
+  No migrations to apply.
+```
+
+## start the django app
+```
+$ docker run -d --name app1 --network polls_net -e "DATABASE_URL=postgres://pollsuser:pollspass@db/pollsdb" django-polls:uwsgi4nginx
+a60d9c8b340417d14245515045653805530ece822ec5fc39c0a072b6278fc949
+```
+
+## build nginx image
+```
+$ cat Dockerfile.nginx
+FROM django as dev
+WORKDIR /code
+COPY . .
+RUN pip install dj-database-url==0.5.0
+ARG DjangoSettings=mysite.settings_universal
+ENV DJANGO_SETTINGS_MODULE=$DjangoSettings
+RUN python manage.py collectstatic
+
+FROM nginx:1.17.0
+WORKDIR /code
+COPY --from=dev /code/static /code/static
+COPY mysite_nginx.conf /etc/nginx/conf.d/
+
+$ cat mysite_nginx.conf 
+# mysite_nginx.conf
+
+upstream django {
+    server app1:8000;
+}
+
+server {
+    listen      8000;
+    server_name _; # special "catch all" Server Name, please substitute with something appropriate
+    charset     utf-8;
+
+    client_max_body_size 75M;   # adjust to taste
+
+    location /media  {
+        alias /code/media;  # if Media Files are to be served
+    }
+
+    location /static {
+        alias /code/static; # if Static Files are to be served
+    }
+
+    # Finally, send all non-media requests to the Django server.
+    location / {
+        uwsgi_pass  django;
+        include     /etc/nginx/uwsgi_params;
+    }
+}
+
+$ docker build -t mynginx -f Dockerfile.nginx .
+```
+
+## start nginx
+```
+$ docker run -it --rm --network polls_net -p 8000:8000 mynginx
+```
+
+## access the page
+![](./images/85.png)
+
+## create nginx image with SSL, use openssl to generate certs
+```
+$ cat Dockerfile.nginx-ssl 
+FROM django as dev
+WORKDIR /code
+COPY . .
+RUN pip install dj-database-url==0.5.0
+ARG DjangoSettings=mysite.settings_universal
+ENV DJANGO_SETTINGS_MODULE=$DjangoSettings
+RUN python manage.py collectstatic
+
+FROM ubuntu:18.04 as ssl
+RUN apt-get update && apt-get install -y openssl
+WORKDIR /ssl
+RUN openssl req -x509 -sha256 -nodes -days 365 -newkey rsa:2048 \
+    -keyout django-polls.key.pem -out django-polls.crt.pem \
+    -subj "/CN=django-polls.example.com"
+
+FROM nginx:1.17.0
+WORKDIR /code
+COPY --from=dev /code/static /code/static
+COPY --from=ssl /ssl/django-polls.key.pem /ssl/django-polls.crt.pem /code/
+COPY mysite_nginx_ssl.conf /etc/nginx/conf.d/
+
+$ cat mysite_nginx_ssl.conf 
+# mysite_nginx_ssl.conf
+
+upstream django {
+    server app1:8000;
+}
+
+server {
+    listen 443 ssl;
+    ssl_certificate /code/django-polls.crt.pem;
+    ssl_certificate_key /code/django-polls.key.pem;
+    server_name django-polls.example.com;
+
+    charset     utf-8;
+    client_max_body_size 75M;   # adjust to taste
+
+    location /media  {
+        alias /code/media;  # if Media Files are to be served
+    }
+
+    location /static {
+        alias /code/static; # if Static Files are to be served
+    }
+
+    # Finally, send all non-media requests to the Django server.
+    location / {
+        uwsgi_pass  django;
+        include     /etc/nginx/uwsgi_params;
+    }
+}
+
+$ docker build -t mynginx:ssl -f Dockerfile.nginx-ssl .
+```
+
+## start nginx
+```
+$ docker run -it --rm --network polls_net -p 443:443 mynginx:ssl
+```
+
+## access the page using https
+![](./images/105.png)
+![](./images/106.png)
+
+# Load Balancing
+
+## start second django container
+```
+$ docker run -d --name app2 --network polls_net -e "DATABASE_URL=postgres://pollsuser:pollspass@db/pollsdb" django-polls:uwsgi4nginx
+028a1cd5feffe59c38684795be1dcb01c144f9ab2cebbf4e9de9d54973347d45
+```
+
+## build nginx conf with upstream block for load balancing
+```
+$ cat mysite_nginx_ssl_lb.conf 
+# mysite_nginx_ssl.conf
+
+upstream django {
+    server app1:8000;
+    server app2:8000;
+}
+
+server {
+    listen 443 ssl;
+    ssl_certificate /code/django-polls.crt.pem;
+    ssl_certificate_key /code/django-polls.key.pem;
+    server_name django-polls.example.com;
+
+    charset     utf-8;
+    client_max_body_size 75M;   # adjust to taste
+
+    location /media  {
+        alias /code/media;  # if Media Files are to be served
+    }
+
+    location /static {
+        alias /code/static; # if Static Files are to be served
+    }
+
+    # Finally, send all non-media requests to the Django server.
+    location / {
+        uwsgi_pass  django;
+        include     /etc/nginx/uwsgi_params;
+    }
+}
 
 
+$ docker build -t mynginx:lb -f Dockerfile.nginx-ssl .
+```
 
+## start nginx
+```
+$ docker run -it --rm --network polls_net -p 443:443 mynginx:lb
+```
