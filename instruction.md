@@ -2795,3 +2795,10 @@ $ docker build -t mynginx:lb -f Dockerfile.nginx-ssl .
 ```
 $ docker run -it --rm --network polls_net -p 443:443 mynginx:lb
 ```
+
+# The need of Automation
+![](./images/107.png)
+![](./images/108.png)
+![](./images/109.png)
+
+
