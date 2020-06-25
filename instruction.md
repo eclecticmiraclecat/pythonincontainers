@@ -2910,3 +2910,42 @@ WARNING: This action will delete both local reference and remote instance.
 Are you sure? (y/n): y
 Successfully removed local
 ```
+
+# Image Registries & Repositories
+
+![](./images/111.png)
+![](./images/112.png)
+![](./images/113.png)
+![](./images/114.png)
+
+## view the python image from gcr.io registry
+```
+$ docker run -it --rm gcr.io/google-containers/python:3.5.1-slim
+Python 3.5.1 (default, Mar 19 2016, 01:53:26) 
+[GCC 4.9.2] on linux
+Type "help", "copyright", "credits" or "license" for more information.
+>>> print(open('/etc/os-release').read())
+PRETTY_NAME="Debian GNU/Linux 8 (jessie)"
+NAME="Debian GNU/Linux"
+VERSION_ID="8"
+VERSION="8 (jessie)"
+ID=debian
+HOME_URL="http://www.debian.org/"
+SUPPORT_URL="http://www.debian.org/support"
+BUG_REPORT_URL="https://bugs.debian.org/"
+```
+![](./images/115.png)
+![](./images/116.png)
+![](./images/117.png)
+
+## push to dockerhub
+```
+$ docker tag django-polls:uwsgi4nginx johnderasia/django-polls:uwsgi4nginx
+
+$ docker push johnderasia/django-polls:uwsgi4nginx
+```
+## repository is available on docker hub registry
+![](./images/118.png)
+
+
+
