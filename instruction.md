@@ -2798,7 +2798,115 @@ $ docker run -it --rm --network polls_net -p 443:443 mynginx:lb
 
 # The need of Automation
 ![](./images/107.png)
+
+## required containers
 ![](./images/108.png)
+
+## need to write a lot of commands
 ![](./images/109.png)
 
+# Shipping Containers
+![](./images/110.png)
 
+## Ship image with docker save and export
+```
+$ git clone https://github.com/pythonincontainers/flask-hello
+
+$ cd flask-hello
+
+$ cat Dockerfile-alpine 
+FROM python:3-alpine
+WORKDIR /myproject
+COPY . .
+RUN pip install -r requirements.txt
+EXPOSE 5000
+ENV FLASK_DEBUG=True
+CMD python flask-hello.py
+```
+
+## build the image
+```
+$ docker build -t flask-hello:alpine -f Dockerfile-alpine .
+```
+
+## transfer the container to another machine
+```
+$ docker images flask-hello
+REPOSITORY          TAG                 IMAGE ID            CREATED              SIZE
+flask-hello         alpine              e4d4a00be678        About a minute ago   89.7MB
+```
+### create a container
+```
+$ docker create --name flask-hello flask-hello:alpine
+
+$ docker ps -a
+CONTAINER ID        IMAGE                COMMAND                  CREATED             STATUS                    PORTS               NAMES
+f908448f202d        flask-hello:alpine   "/bin/sh -c 'python …"   7 seconds ago       Created                                       flask-hello
+```
+## export the container
+```
+$ docker export -o flask-hello.tar flask-hello
+
+$ ls -lh flask-hello.tar 
+-rw------- 1 exsanetol exsanetol 88M Jun  26 03:09 flask-hello.tar
+```
+
+## create a new docker machine locally
+```
+$ docker-machine create --driver virtualbox local
+
+$ docker-machine ls
+NAME    ACTIVE   DRIVER       STATE     URL                         SWARM   DOCKER     ERRORS
+local   -        virtualbox   Running   tcp://192.168.99.100:2376           v19.03.5   
+```
+
+## copy the tar file to new docker machine
+```
+$ docker-machine scp flask-hello.tar local:/tmp
+flask-hello.tar                                                                             100%   88MB  38.7MB/s   00:02
+```
+
+## access the docker machine and import the image
+```
+$ docker-machine ssh local
+   ( '>')
+  /) TC (\   Core is distributed with ABSOLUTELY NO WARRANTY.
+ (/-_--_-\)           www.tinycorelinux.net
+
+docker@local:~$ ls /tmp/flask-hello.tar 
+/tmp/flask-hello.tar
+
+docker@local:~$ docker import --change "WORKDIR /myproject" --change "CMD python flask-hello.py" /tmp/flask-hello.tar flask-hello:alpine
+
+docker@local:~$ docker images
+REPOSITORY          TAG                 IMAGE ID            CREATED              SIZE
+flask-hello         alpine              49bff782a9af        About a minute ago   89.4MB
+
+docker@local:~$ docker run -it --rm -p 5000:5000 flask-hello:alpine
+ * Serving Flask app "flask-hello" (lazy loading)
+ * Environment: production
+   WARNING: This is a development server. Do not use it in a production deployment.
+   Use a production WSGI server instead.
+ * Debug mode: off
+ * Running on http://0.0.0.0:5000/ (Press CTRL+C to quit)
+```
+
+## access the page from localmachine
+```
+$ docker-machine ip local
+192.168.99.100
+
+$ curl 192.168.99.100:5000
+Flask Hello world! Version 3
+```
+
+## clean up
+```
+$ rm -rf *.tar
+
+$ docker-machine rm local
+About to remove local
+WARNING: This action will delete both local reference and remote instance.
+Are you sure? (y/n): y
+Successfully removed local
+```
