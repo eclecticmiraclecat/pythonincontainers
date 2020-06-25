@@ -2947,5 +2947,10 @@ $ docker push johnderasia/django-polls:uwsgi4nginx
 ## repository is available on docker hub registry
 ![](./images/118.png)
 
+# Review of Key Cloud Registries
+- CI/CD
+- automated image build
+- security scanning
 
+![](./images/119.png)
 
