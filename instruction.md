@@ -2954,3 +2954,172 @@ $ docker push johnderasia/django-polls:uwsgi4nginx
 
 ![](./images/119.png)
 
+# GitHub and Docker Hub Integration
+
+![](./images/120.png)
+![](./images/121.png)
+![](./images/122.png)
+
+## fork repo
+
+![](./images/123.png)
+![](./images/124.png)
+![](./images/125.png)
+
+## link dockerhub with github
+![](./images/125.png)
+![](./images/126.png)
+![](./images/127.png)
+![](./images/128.png)
+![](./images/129.png)
+
+## create repo
+![](./images/130.png)
+![](./images/131.png)
+![](./images/132.png)
+![](./images/133.png)
+![](./images/134.png)
+![](./images/135.png)
+![](./images/136.png)
+![](./images/137.png)
+
+# GitLab Container Image Build Workflow
+![](./images/138.png)
+
+## fork repo
+![](./images/139.png)
+![](./images/140.png)
+![](./images/141.png)
+
+## GitLab CI
+![](./images/142.png)
+![](./images/143.png)
+
+## build
+![](./images/144.png)
+
+## test
+![](./images/145.png)
+
+## container scanning
+![](./images/146.png)
+
+
+## modify file and commit the changes
+![](./images/147.png)
+![](./images/148.png)
+![](./images/149.png)
+![](./images/150.png)
+![](./images/151.png)
+![](./images/152.png)
+![](./images/153.png)
+![](./images/154.png)
+![](./images/155.png)
+
+## start the django app
+```
+$ docker run -it --rm -p 5000:5000 registry.gitlab.com/nosetrex/gitlab-pipeline
+ * Serving Flask app "factors_flask" (lazy loading)
+ * Environment: production
+   WARNING: This is a development server. Do not use it in a production deployment.
+   Use a production WSGI server instead.
+ * Debug mode: off
+ * Running on http://0.0.0.0:5000/ (Press CTRL+C to quit)
+```
+
+## access the page
+![](./images/156.png)
+
+
+# Vulnerability Scanning of Images
+![](./images/157.png)
+
+## CVE for django
+![](./images/158.png)
+![](./images/159.png)
+![](./images/160.png)
+
+## Use clair to scan images
+![](./images/161.png)
+
+```
+$ git clone https://github.com/pythonincontainers/cve-scan
+
+$ cd cvd-scan
+
+$ docker build -t clair-scanner .
+
+$ docker network create clair_net
+
+$ docker run -d --name postgres --network clair_net arminc/clair-db
+
+$ docker run -d --name clair --network clair_net arminc/clair-local-scan
+```
+
+![](./images/162.png)
+
+## scan python slim using clair
+```
+$ docker pull python:3.7.3-slim
+
+$ docker run -it --rm --network clair_net -v /var/run/docker.sock:/var/run/docker.sock -v ${PWD}:/scan clair-scanner -c http://clair:6060 -r clair-report1.json python:3.7.3-slim
+2020/06/26 05:00:35 [INFO] ▶ Start clair-scanner
+2020/06/26 05:00:42 [INFO] ▶ Server listening on port 9279
+2020/06/26 05:00:42 [INFO] ▶ Analyzing 661b2550abac19244ed42527168930b49ba1a95cebc799d3e1bed6ceebf94208
+2020/06/26 05:00:43 [INFO] ▶ Analyzing 1c45b7f2ca61d0126d457fb2e5d74f5c24a7a616f69a68622480cd092d9c30d3
+2020/06/26 05:00:44 [INFO] ▶ Analyzing 1e4d7eabc17aa5a26ca7253cae722da5db2b5f624c813539e67fe04944fb624b
+2020/06/26 05:00:44 [INFO] ▶ Analyzing 039251b9eb6a90769bf01bee8567b5dee2c1e31b3c00d6fe4034c09a350da914
+2020/06/26 05:00:44 [INFO] ▶ Analyzing 7203e107680aca999726fab3ad8f59d37da890c12d4479d08c7769e34b6d3ad2
+2020/06/26 05:00:44 [WARN] ▶ Image [python:3.7.3-slim] contains 103 total vulnerabilities
+2020/06/26 05:00:44 [ERRO] ▶ Image [python:3.7.3-slim] contains 103 unapproved vulnerabilities
++------------+-----------------------------+--------------+-----------------------+--------------------------------------------------------------+
+| STATUS     | CVE SEVERITY                | PACKAGE NAME | PACKAGE VERSION       | CVE DESCRIPTION                                              |
++------------+-----------------------------+--------------+-----------------------+--------------------------------------------------------------+
+| Unapproved | High CVE-2019-9169          | glibc        | 2.24-11+deb9u4        | In the GNU C Library (aka glibc or libc6) through            |
+|            |                             |              |                       | 2.29, proceed_next_node in posix/regexec.c has               |
+|            |                             |              |                       | a heap-based buffer over-read via an attempted               |
+|            |                             |              |                       | case-insensitive regular-expression match.                   |
+|            |                             |              |                       | https://security-tracker.debian.org/tracker/CVE-2019-9169    |
++------------+-----------------------------+--------------+-----------------------+--------------------------------------------------------------+
+| Unapproved | High CVE-2020-10878         | perl         | 5.24.1-3+deb9u5       | Perl before 5.30.3 has an integer overflow related to        |
+|            |                             |              |                       | mishandling of a "PL_regkind[OP(n)] == NOTHING" situation.   |
+|            |                             |              |                       | A crafted regular expression could lead to malformed         |
+|            |                             |              |                       | bytecode with a possibility of instruction injection.        |
+|            |                             |              |                       | https://security-tracker.debian.org/tracker/CVE-2020-10878   |
++------------+-----------------------------+--------------+-----------------------+--------------------------------------------------------------+
+```
+
+## scan python with approved whitelist
+```
+$ docker run -it --rm --network clair_net -v /var/run/docker.sock:/var/run/docker.sock -v ${PWD}:/scan clair-scanner -c http://clair:6060 -r clair-report2.json -w python3.7.3-slim_whitelist.yml python:3.7.3-slim
+2020/06/26 05:02:50 [INFO] ▶ Start clair-scanner
+2020/06/26 05:02:53 [INFO] ▶ Server listening on port 9279
+2020/06/26 05:02:53 [INFO] ▶ Analyzing 661b2550abac19244ed42527168930b49ba1a95cebc799d3e1bed6ceebf94208
+2020/06/26 05:02:53 [INFO] ▶ Analyzing 1c45b7f2ca61d0126d457fb2e5d74f5c24a7a616f69a68622480cd092d9c30d3
+2020/06/26 05:02:53 [INFO] ▶ Analyzing 1e4d7eabc17aa5a26ca7253cae722da5db2b5f624c813539e67fe04944fb624b
+2020/06/26 05:02:53 [INFO] ▶ Analyzing 039251b9eb6a90769bf01bee8567b5dee2c1e31b3c00d6fe4034c09a350da914
+2020/06/26 05:02:53 [INFO] ▶ Analyzing 7203e107680aca999726fab3ad8f59d37da890c12d4479d08c7769e34b6d3ad2
+2020/06/26 05:02:53 [WARN] ▶ Image [python:3.7.3-slim] contains 103 total vulnerabilities
+2020/06/26 05:02:53 [ERRO] ▶ Image [python:3.7.3-slim] contains 46 unapproved vulnerabilities
++------------+-----------------------------+--------------+-----------------------+--------------------------------------------------------------+
+| STATUS     | CVE SEVERITY                | PACKAGE NAME | PACKAGE VERSION       | CVE DESCRIPTION                                              |
++------------+-----------------------------+--------------+-----------------------+--------------------------------------------------------------+
+| Approved   | High CVE-2016-2779          | util-linux   | 2.29.2-1+deb9u1       | runuser in util-linux allows local users to escape to        |
+|            |                             |              |                       | the parent session via a crafted TIOCSTI ioctl call,         |
+|            |                             |              |                       | which pushes characters to the terminal's input buffer.      |
+|            |                             |              |                       | https://security-tracker.debian.org/tracker/CVE-2016-2779    |
++------------+-----------------------------+--------------+-----------------------+--------------------------------------------------------------+
+| Approved   | High CVE-2017-12424         | shadow       | 1:4.4-4.1             | In shadow before 4.5, the newusers tool could be             |
+|            |                             |              |                       | made to manipulate internal data structures in ways          |
+|            |                             |              |                       | unintended by the authors. Malformed input may lead          |
+|            |                             |              |                       | to crashes (with a buffer overflow or other memory           |
+|            |                             |              |                       | corruption) or other unspecified behaviors. This             |
+|            |                             |              |                       | crosses a privilege boundary in, for example, certain        |
+|            |                             |              |                       | web-hosting environments in which a Control Panel allows     |
+|            |                             |              |                       | an unprivileged user account to create subaccounts.          |
+|            |                             |              |                       | https://security-tracker.debian.org/tracker/CVE-2017-12424   |
++------------+-----------------------------+--------------+-----------------------+--------------------------------------------------------------+
+```
+
+
+
